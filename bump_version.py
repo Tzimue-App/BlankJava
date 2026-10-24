@@ -52,7 +52,7 @@ VERSION_BLOCK_PATTERN = re.compile(
     re.DOTALL
 )
 
-PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(alpha|beta)\.(\d+))?$")
+PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(a|b)\.(\d+))?$")
 MILESTONE_BRANCH_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)-a$")
 COMPONENT_BUMP_PATTERN = re.compile(r"^\s*bump-([\w\-]+)\s*:\s*\[?(\d)\]?", re.IGNORECASE | re.MULTILINE)
 OPENAPI_VERSION_PATTERN = re.compile(
@@ -66,8 +66,8 @@ BUMP_LABELS = {0: "Unchanged", 1: "Major", 2: "Minor", 3: "Patch"}
 
 # Release branch -> stage of the version it produces
 BRANCH_STAGE_MAP = {
-    "dev": "alpha",
-    "test": "beta",
+    "dev": "a",
+    "test": "b",
     "main": None,
 }
 
