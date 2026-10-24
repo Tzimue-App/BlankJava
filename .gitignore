@@ -1,0 +1,34 @@
+# Build output
+build/
+target/
+out/
+dist/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Dependencies
+node_modules/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs
+*.log
+logs/
+
+# Python
+__pycache__/
+
+# doc
+docs/
+.github/issues/

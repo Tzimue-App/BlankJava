@@ -1,0 +1,67 @@
+name: "Create GitHub Release"
+
+# Triggered when a version tag is pushed (by bump-and-tag.yml or manually).
+# Extracts release notes from CHANGELOG.md and creates a GitHub Release.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)create the release for, e.g. v0.2.0-beta.1"
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Extract release notes from CHANGELOG
+        shell: python
+        run: |
+          import os, re
+
+          content = open("CHANGELOG.md", encoding="utf-8").read()
+          tag = os.environ["TAG"]
+          # Matches: ## [vX.Y.Z-x] - YYYY-MM-DD ... until the next ## or end
+          match = re.search(rf"## \[{re.escape(tag)}\].*?\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
+          if match:
+              notes = match.group(1).strip()
+              # Remove the redundant title line (# <Project> - <Stage> vX.Y.Z)
+              notes = re.sub(r"^# .*$", "", notes, flags=re.MULTILINE)
+              # Remove the trailing block separator
+              notes = re.sub(r"\n?---\s*$", "", notes.strip()).strip()
+          else:
+              notes = f"Release {tag}"
+
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write(notes + "\n")
+
+      - name: Determine pre-release status
+        run: |
+          if [[ "$TAG" == *"-alpha."* ]] || [[ "$TAG" == *"-beta."* ]]; then
+            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: "Release ${{ env.TAG }}"
+          body_path: release_notes.md
+          prerelease: ${{ env.IS_PRERELEASE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

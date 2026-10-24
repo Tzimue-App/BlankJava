@@ -1,0 +1,12 @@
+# Which paths belong to which module, for dorny/paths-filter in push.yml and pull-request.yml.
+# backend and frontend also depend on the API contract (generated interfaces / client).
+api:
+  - "api/**"
+backend:
+  - "backend/**"
+  - "api/**"
+frontend:
+  - "frontend/**"
+  - "api/**"
+e2e:
+  - "e2e/**"

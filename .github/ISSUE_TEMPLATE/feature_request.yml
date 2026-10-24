@@ -1,0 +1,110 @@
+name: Feature request
+description: A new user-visible capability that does not exist today.
+title: "feat(<area>): <outcome for the user>"
+labels: ["type: feature", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Follow [the issue guidelines](../blob/main/.github/ISSUE_GUIDELINES.md). Describe the need before the solution.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: 1–3 sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: story
+    attributes:
+      label: User story
+      value: |
+        **As a** …
+        **I want** …
+        **so that** …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      description: Milestone from `docs/roadmap.md` (also set the GitHub milestone).
+      options:
+        - M0 — Foundation (v0.1.0)
+        - M1 — User accounts (v0.2.0)
+        - M2 — Hardening & first stable release (v1.0.0)
+        - Later — not planned yet
+
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: Area
+      options:
+        - label: api (OpenAPI contract)
+        - label: backend (Spring Boot API)
+        - label: frontend (Angular)
+        - label: e2e (Selenium)
+        - label: database (PostgreSQL, Flyway migrations)
+        - label: logging / observability
+        - label: infra / Docker
+        - label: CI / release
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and motivation
+      description: Why now? Link the spec (`docs/technical_analysis.md`) or user feedback.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: UX flow and Angular routes (which feature folder), OpenAPI changes, data model and Flyway migration, security impact, log events added.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] **Given** …, **when** …, **then** …
+        - [ ] A user cannot read or change another user's data through this feature
+    validations:
+      required: true
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test plan
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+
+  - type: markdown
+    attributes:
+      value: |
+        ### Definition of Done
+        - [ ] All acceptance criteria are checked
+        - [ ] Tests cover the new behaviour
+        - [ ] Pull request suite green, coverage thresholds and diff coverage met
+        - [ ] Backend and frontend both shipped (no half-feature behind a dead endpoint)
+        - [ ] Selenium journey added for each new user-visible flow
+        - [ ] `CHANGELOG.md` `[Unreleased]` updated, `Bump-<component>:` set for every changed component (CI `flow-and-versions` green)
+        - [ ] Docs updated
+        - [ ] PR from the issue branch into the milestone branch `vX.Y.Z-a` reviewed and merged by a human, description contains `Closes #<issue>` (the issue closes when the milestone reaches `dev`)

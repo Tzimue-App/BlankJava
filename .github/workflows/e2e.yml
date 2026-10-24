@@ -1,0 +1,140 @@
+name: "Selenium suite"
+
+# Runs the Selenium suite against the full running stack and publishes a report for the
+# human reviewer (docs/technical_analysis.md §3.6):
+#   - Allure report (single HTML file): steps, screenshots, browser logs per test
+#   - JUnit results, screenshots, Docker Compose logs of the run
+#   - job summary and, on pull requests, a sticky comment with the totals and the report link
+# Called by pull-request.yml; can also be started by hand on any branch.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Check that the stack and the suite exist
+        id: check
+        run: |
+          if [ -f compose.yaml ] && [ -f e2e/gradlew ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::compose.yaml or e2e/ not present yet, Selenium suite skipped."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Start PostgreSQL, backend, frontend and Selenium
+        if: steps.check.outputs.present == 'true'
+        run: |
+          [ -f .env.example ] && cp .env.example .env
+          docker compose --profile e2e up --build --detach --wait
+
+      # The runner container reaches the frontend as https://frontend through http://selenium:4444
+      - name: Run the Selenium suite
+        id: tests
+        if: steps.check.outputs.present == 'true'
+        continue-on-error: true
+        run: docker compose run --rm e2e
+
+      - name: Collect Docker Compose logs
+        if: always() && steps.check.outputs.present == 'true'
+        run: |
+          mkdir -p e2e/build
+          docker compose --profile e2e logs --no-color --timestamps > e2e/build/compose-logs.txt
+
+      - name: Generate the Allure report (single HTML file)
+        if: always() && steps.check.outputs.present == 'true'
+        run: |
+          if [ -d e2e/build/allure-results ]; then
+            npx --yes allure-commandline@2 generate --single-file --clean \
+              e2e/build/allure-results -o e2e/build/allure-report
+          fi
+
+      - name: Summarise results
+        id: summary
+        if: always() && steps.check.outputs.present == 'true'
+        shell: python
+        run: |
+          import glob, os, xml.etree.ElementTree as ET
+
+          totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          failed = []
+          for path in glob.glob("e2e/build/test-results/**/*.xml", recursive=True):
+              suite = ET.parse(path).getroot()
+              for key in totals:
+                  totals[key] += int(suite.get(key, 0))
+              for case in suite.iter("testcase"):
+                  if case.find("failure") is not None or case.find("error") is not None:
+                      failed.append(f"{case.get('classname', '').split('.')[-1]} › {case.get('name')}")
+          broken = totals["failures"] + totals["errors"]
+          passed = totals["tests"] - broken - totals["skipped"]
+          status = "✅ passed" if totals["tests"] and not broken else ("❌ failed" if broken else "⚠️ no tests found")
+
+          lines = [
+              f"### Selenium suite {status}",
+              "",
+              "| Total | Passed | Failed | Skipped |",
+              "|---|---|---|---|",
+              f"| {totals['tests']} | {passed} | {broken} | {totals['skipped']} |",
+          ]
+          if failed:
+              lines += ["", "**Failed tests**", ""] + [f"- {name}" for name in failed[:20]]
+          text = "\n".join(lines) + "\n"
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write(text)
+          with open("e2e-summary.md", "w", encoding="utf-8") as f:
+              f.write(text)
+
+      - name: Upload the Selenium report
+        id: upload
+        if: always() && steps.check.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-report-${{ github.run_number }}
+          retention-days: 30
+          path: |
+            e2e/build/allure-report/
+            e2e/build/screenshots/
+            e2e/build/test-results/
+            e2e/build/compose-logs.txt
+          if-no-files-found: warn
+
+      - name: Add the report link to the summary
+        if: always() && steps.check.outputs.present == 'true'
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo ""
+            echo "**Report for review:** [download the Selenium report]($ARTIFACT_URL) — open \`allure-report/index.html\` (screenshots and Compose logs included) · [workflow run]($RUN_URL)"
+          } >> e2e-summary.md
+
+      - name: Comment on the pull request
+        if: always() && steps.check.outputs.present == 'true' && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: selenium-report
+          path: e2e-summary.md
+
+      - name: Stop the stack
+        if: always() && steps.check.outputs.present == 'true'
+        run: docker compose --profile e2e down --volumes
+
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "::error::Selenium suite failed. See the report artifact."
+          exit 1

@@ -1,0 +1,253 @@
+name: "Pull request suite"
+
+# Decides whether a PR can be merged (docs/technical_analysis.md §7.2).
+# Checks the modules changed by the WHOLE PR (diff with the base branch): everything the push
+# suite does, plus integration tests, diff coverage on changed lines, branch flow and version
+# directives, Docker image build and dependency review.
+# Selenium runs last, against the full stack, for every PR into dev, test and main, and for PRs
+# into a milestone branch labelled "run-e2e". The human reviewer validates the PR with its report.
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - test
+      - main
+      - "v[0-9]+.[0-9]+.[0-9]+-a"
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BASE_REF: origin/${{ github.base_ref }}
+  # Minimum share of the PR's changed lines covered by tests
+  DIFF_COVERAGE_MIN: 80
+
+jobs:
+  flow-and-versions:
+    # A "labeled" event only matters for the run-e2e label
+    if: github.event.action != 'labeled' || github.event.label.name == 'run-e2e'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Check branch flow and CHANGELOG version directives
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: python bump_version.py --check "$BASE_REF" --head-ref "$HEAD_REF"
+
+  changes:
+    if: github.event.action != 'labeled' || github.event.label.name == 'run-e2e'
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.modules.outputs.api }}
+      backend: ${{ steps.modules.outputs.backend }}
+      frontend: ${{ steps.modules.outputs.frontend }}
+      e2e: ${{ steps.modules.outputs.e2e }}
+      stack: ${{ steps.modules.outputs.stack }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Detect what this PR changed
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: .github/module-filters.yml
+
+      - name: Keep only modules that exist
+        id: modules
+        run: |
+          has() { [ "$1" = "true" ] && [ -e "$2" ] && echo true || echo false; }
+          echo "api=$(has '${{ steps.filter.outputs.api }}' api/openapi.yaml)" >> "$GITHUB_OUTPUT"
+          echo "backend=$(has '${{ steps.filter.outputs.backend }}' backend/gradlew)" >> "$GITHUB_OUTPUT"
+          echo "frontend=$(has '${{ steps.filter.outputs.frontend }}' frontend/package.json)" >> "$GITHUB_OUTPUT"
+          echo "e2e=$(has '${{ steps.filter.outputs.e2e }}' e2e/gradlew)" >> "$GITHUB_OUTPUT"
+          # The Selenium suite needs the whole stack, whatever the PR changed
+          echo "stack=$([ -f compose.yaml ] && [ -f e2e/gradlew ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Lint the OpenAPI contract
+        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi.yaml
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      # check = format, Error Prone, unit + slice + Testcontainers integration tests, coverage thresholds
+      - name: Full backend checks
+        working-directory: backend
+        run: |
+          chmod +x gradlew
+          ./gradlew check jacocoTestReport --no-daemon
+
+      - name: Diff coverage on the lines changed by this PR
+        run: |
+          pip install --quiet diff-cover
+          diff-cover backend/build/reports/jacoco/test/jacocoTestReport.xml \
+            --src-roots backend/src/main/java \
+            --compare-branch "$BASE_REF" \
+            --fail-under "$DIFF_COVERAGE_MIN" \
+            --markdown-report diff-coverage-backend.md
+          { echo "## Backend diff coverage"; cat diff-coverage-backend.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-reports
+          path: |
+            backend/build/reports/
+            diff-coverage-backend.md
+          if-no-files-found: ignore
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Lint, format, unit tests with coverage, production build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run format:check
+          npm run test:ci
+          npm run build
+
+      - name: Diff coverage on the lines changed by this PR
+        run: |
+          pip install --quiet diff-cover
+          diff-cover frontend/coverage/lcov.info \
+            --compare-branch "$BASE_REF" \
+            --fail-under "$DIFF_COVERAGE_MIN" \
+            --markdown-report diff-coverage-frontend.md
+          { echo "## Frontend diff coverage"; cat diff-coverage-frontend.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: |
+            frontend/coverage/
+            diff-coverage-frontend.md
+          if-no-files-found: ignore
+
+  e2e-compile:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Format and compile the Selenium tests
+        run: |
+          chmod +x gradlew
+          ./gradlew spotlessCheck compileTestJava --no-daemon
+
+  docker-build:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build images without pushing
+        run: |
+          for module in backend frontend; do
+            if [ -f "$module/Dockerfile" ]; then
+              docker buildx build "$module"
+            else
+              echo "No $module/Dockerfile yet, skipping."
+            fi
+          done
+
+  dependency-review:
+    if: github.event.action != 'labeled'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Review new dependencies for known vulnerabilities and licences
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  selenium:
+    # Final check, only once everything else passed
+    needs: [flow-and-versions, changes, api, backend, frontend, e2e-compile, docker-build]
+    if: |
+      always() && needs.changes.outputs.stack == 'true' &&
+      !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') &&
+      (contains(fromJSON('["dev","test","main"]'), github.base_ref) ||
+       contains(github.event.pull_request.labels.*.name, 'run-e2e'))
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/e2e.yml

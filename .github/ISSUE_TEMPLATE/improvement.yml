@@ -1,0 +1,110 @@
+name: Improvement
+description: Refactoring, performance, security hardening, dependency upgrade, tooling, CI or docs. Nothing is broken and nothing new is user-visible.
+title: "<refactor|perf|security|chore|ci|docs|test>(<area>): <outcome>"
+labels: ["type: improvement", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Follow [the issue guidelines](../blob/main/.github/ISSUE_GUIDELINES.md).
+        Exploitable weaknesses go to *Security → Report a vulnerability*, not here.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Refactoring / clean code
+        - Performance
+        - Security hardening
+        - Dependency / framework upgrade
+        - Tooling / CI / DevOps
+        - Tests
+        - Documentation
+    validations:
+      required: true
+
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      description: Milestone from `docs/roadmap.md` (also set the GitHub milestone).
+      options:
+        - M0 — Foundation (v0.1.0)
+        - M1 — User accounts (v0.2.0)
+        - M2 — Hardening & first stable release (v1.0.0)
+        - Later — not planned yet
+
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: Area
+      options:
+        - label: api (OpenAPI contract)
+        - label: backend (Spring Boot API)
+        - label: frontend (Angular)
+        - label: e2e (Selenium)
+        - label: database (PostgreSQL, Flyway migrations)
+        - label: logging / observability
+        - label: infra / Docker
+        - label: CI / release
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current state
+      description: What exists today, with `path/File:line` links, versions or measurements.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation and impact
+      description: What it costs to leave it as is (risk, time, money, support window).
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Steps, migration path, rollback plan for risky changes (Flyway migrations are forward-only).
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Measurable. Include "no behaviour change" checks for refactorings.
+      value: |
+        - [ ] …
+        - [ ] **Non-regression:** all existing tests pass unchanged
+    validations:
+      required: true
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test plan
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+
+  - type: markdown
+    attributes:
+      value: |
+        ### Definition of Done
+        - [ ] All acceptance criteria are checked
+        - [ ] Pull request suite green, coverage thresholds and diff coverage met
+        - [ ] `CHANGELOG.md` `[Unreleased]` updated, `Bump-<component>:` set for every changed component (CI `flow-and-versions` green)
+        - [ ] Docs updated
+        - [ ] PR from the issue branch into the milestone branch `vX.Y.Z-a` reviewed and merged by a human, description contains `Closes #<issue>` (the issue closes when the milestone reaches `dev`)

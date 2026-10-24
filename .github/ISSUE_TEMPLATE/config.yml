@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Tzimue-App/BlankJava/security/advisories/new
+    about: Exploitable weaknesses are reported privately, never as public issues.
+  - name: Issue guidelines
+    url: https://github.com/Tzimue-App/BlankJava/blob/main/.github/ISSUE_GUIDELINES.md
+    about: Read this before filing — titles, labels, acceptance criteria, Definition of Done.

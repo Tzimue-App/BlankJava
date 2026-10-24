@@ -1,0 +1,60 @@
+name: "Bump Version & Tag"
+
+# Triggered after a merge into dev, test or main (docs/technical_analysis.md §8.4):
+#   milestone vX.Y.Z-a → dev : component bumps applied, project X.Y.Z-alpha.N, tag, pre-release
+#   dev → test               : project X.Y.Z-beta.N, tag, pre-release, back-merge test → dev
+#   test → main              : project X.Y.Z, tag, release, back-merge main → test and main → dev
+# A back-merge that conflicts is not forced: a backmerge/* pull request is opened instead.
+# The job-level 'if' skips the bot's own commits (release and back-merge commits).
+
+on:
+  push:
+    branches:
+      - dev
+      - test
+      - main
+
+# Two merges in quick succession must not compute the same version twice.
+concurrency:
+  group: bump-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: "!contains(github.event.head_commit.message, '[bump_version]')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.BUMP_TOKEN || github.token }}
+          fetch-depth: 0  # Full history and tags: counters and back-merges
+
+      - name: Check Token Presence
+        env:
+          HAS_BUMP_TOKEN: ${{ secrets.BUMP_TOKEN != '' }}
+        run: |
+          if [ "$HAS_BUMP_TOKEN" != "true" ]; then
+            echo "::warning::BUMP_TOKEN is empty. Falling back to GITHUB_TOKEN. Pushed tags will NOT trigger the release and Docker workflows, and pushes to protected branches will fail."
+          else
+            echo "✅ BUMP_TOKEN is present."
+          fi
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run bump_version.py
+        env:
+          GH_TOKEN: ${{ secrets.BUMP_TOKEN || github.token }}
+        run: python bump_version.py --ci

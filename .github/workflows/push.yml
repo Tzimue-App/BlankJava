@@ -1,0 +1,164 @@
+name: "Push suite"
+
+# Fast feedback on what a push changed (docs/technical_analysis.md §7.2).
+# Only the modules touched by THIS push (diff with the previous pushed commit) are checked:
+# format + lint, unit and slice tests, coverage thresholds. No integration tests, no Selenium:
+# those belong to the pull request suite.
+# dev, test and main only receive merges; their checks run in the PR suite and release workflows.
+
+on:
+  push:
+    branches-ignore:
+      - dev
+      - test
+      - main
+      - "backmerge/**"
+    tags-ignore:
+      - "**"
+
+concurrency:
+  group: push-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.modules.outputs.api }}
+      backend: ${{ steps.modules.outputs.backend }}
+      frontend: ${{ steps.modules.outputs.frontend }}
+      e2e: ${{ steps.modules.outputs.e2e }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # base = the pushed branch itself -> compares with the commit before the push
+      - name: Detect what this push changed
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          base: ${{ github.ref }}
+          filters: .github/module-filters.yml
+
+      - name: Keep only modules that exist
+        id: modules
+        run: |
+          has() { [ "$1" = "true" ] && [ -e "$2" ] && echo true || echo false; }
+          echo "api=$(has '${{ steps.filter.outputs.api }}' api/openapi.yaml)" >> "$GITHUB_OUTPUT"
+          echo "backend=$(has '${{ steps.filter.outputs.backend }}' backend/gradlew)" >> "$GITHUB_OUTPUT"
+          echo "frontend=$(has '${{ steps.filter.outputs.frontend }}' frontend/package.json)" >> "$GITHUB_OUTPUT"
+          echo "e2e=$(has '${{ steps.filter.outputs.e2e }}' e2e/gradlew)" >> "$GITHUB_OUTPUT"
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Lint the OpenAPI contract
+        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi.yaml
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Format, unit/slice tests and coverage thresholds
+        run: |
+          chmod +x gradlew
+          ./gradlew spotlessCheck test jacocoTestCoverageVerification --no-daemon
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-reports
+          path: |
+            backend/build/reports/tests/
+            backend/build/reports/jacoco/
+          if-no-files-found: ignore
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint and format
+        run: |
+          npm run lint
+          npm run format:check
+
+      - name: Unit tests with coverage thresholds
+        run: npm run test:ci
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: ignore
+
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      # The suite itself runs against the full stack in the PR suite
+      - name: Format and compile the Selenium tests
+        run: |
+          chmod +x gradlew
+          ./gradlew spotlessCheck compileTestJava --no-daemon

@@ -1,0 +1,22 @@
+{
+  "name": "blankjava",
+  "version": "v0.0.0-a",
+  "private": true,
+  "description": "Full-stack Java foundation: Spring Boot API, Angular frontend and Selenium end-to-end tests, with user registration, login and user display.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tzimue-App/BlankJava.git"
+  },
+  "license": "UNLICENSED",
+  "components": {
+    "api": "api/openapi.yaml",
+    "backend": "backend/gradle.properties",
+    "frontend": "frontend/package.json",
+    "e2e": "e2e/gradle.properties"
+  },
+  "scripts": {
+    "milestone:start": "python bump_version.py --start-milestone",
+    "release:dry-run": "python bump_version.py --dry-run",
+    "pr:check": "python bump_version.py --check"
+  }
+}
