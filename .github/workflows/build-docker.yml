@@ -1,17 +1,17 @@
 name: "Build & Publish Docker Images"
 
-# Triggered on beta tags (vX.Y.Z-beta.N, created when dev is promoted to test)
+# Triggered on beta tags (vX.Y.Z-b, created when dev is promoted to test)
 # and on stable tags (vX.Y.Z, created when test is promoted to main). Alpha tags are not published.
 # Images: ghcr.io/<owner>/<repo>-backend and ghcr.io/<owner>/<repo>-frontend, tagged with
 #   - the component version   (backend/gradle.properties, frontend/package.json)  e.g. 1.2.0
-#   - the project version     (root package.json, the git tag without "v")      e.g. 0.2.0-beta.1
+#   - the project version     (root package.json, the git tag without "v")      e.g. 0.1.7-b
 #   - the channel             beta | latest
 # See docs/technical_analysis.md §8.5.
 
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-b"
       - "v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
 
@@ -59,7 +59,7 @@ jobs:
           fi
           [ -n "$COMPONENT_VERSION" ] || { echo "::error::No version in $VERSION_FILE"; exit 1; }
           echo "COMPONENT_VERSION=$COMPONENT_VERSION" >> "$GITHUB_ENV"
-          if [[ "$GITHUB_REF_NAME" == *-beta.* ]]; then echo "CHANNEL=beta"; else echo "CHANNEL=latest"; fi >> "$GITHUB_ENV"
+          if [[ "$GITHUB_REF_NAME" == *-b ]]; then echo "CHANNEL=beta"; else echo "CHANNEL=latest"; fi >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         if: steps.check.outputs.present == 'true'

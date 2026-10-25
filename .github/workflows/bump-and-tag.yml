@@ -1,9 +1,9 @@
 name: "Bump Version & Tag"
 
 # Triggered after a merge into dev, test or main (docs/technical_analysis.md §8.4):
-#   milestone vX.Y.Z-a → dev : component bumps applied, project X.Y.Z-alpha.N, tag, pre-release
-#   dev → test               : project X.Y.Z-beta.N, tag, pre-release, back-merge test → dev
-#   test → main              : project X.Y.Z, tag, release, back-merge main → test and main → dev
+#   milestone vX.Y.Z-a → dev : component bumps applied, tag vX.Y.Z-a, pre-release
+#   dev → test               : project X.Y.Z-b, tag vX.Y.Z-b, pre-release, back-merge test → dev
+#   test → main              : project X.Y.Z, tag vX.Y.Z, release, back-merge main → test and main → dev
 # A back-merge that conflicts is not forced: a backmerge/* pull request is opened instead.
 # The job-level 'if' skips the bot's own commits (release and back-merge commits).
 
@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           token: ${{ secrets.BUMP_TOKEN || github.token }}
-          fetch-depth: 0  # Full history and tags: counters and back-merges
+          fetch-depth: 0  # Full history and tags: release checks and back-merges
 
       - name: Check Token Presence
         env:

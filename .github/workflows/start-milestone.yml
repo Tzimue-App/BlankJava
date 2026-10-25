@@ -1,16 +1,16 @@
 name: "Start milestone"
 
-# Creates the milestone branch vX.Y.Z-a from dev, with the project version set to X.Y.Z-alpha.0
+# Creates the milestone branch vX.Y.Z-a from dev, with the project version set to X.Y.Z-a
 # (docs/technical_analysis.md §8.1). Same as running locally on dev:
 #   python bump_version.py --start-milestone X.Y.Z
-# The script refuses a version that is not the next major, minor or patch (or a fix round of
-# an unreleased version).
+# The script refuses a version that is not the next major, minor or patch, or that is already
+# released (tag vX.Y.Z-a exists).
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Milestone target version, X.Y.Z (e.g. 0.2.0)"
+        description: "Milestone target version, X.Y.Z (e.g. 0.1.7)"
         required: true
 
 jobs:

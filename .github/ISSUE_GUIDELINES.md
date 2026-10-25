@@ -50,11 +50,13 @@ Security vulnerabilities are **never** filed as issues: use *Security → Report
 |---|---|---|---|
 | `vX.Y.Z-a` | `dev`, with `python bump_version.py --start-milestone X.Y.Z` or the *Start milestone* workflow | Milestone integration | `dev` |
 | `<type>/<issue>-<slug>`, e.g. `feat/14-register-page` | the milestone branch | One issue | the milestone branch |
-| `dev` | — | Alpha releases `vX.Y.Z-alpha.N` | `test` |
-| `test` | — | Beta releases `vX.Y.Z-beta.N`, Docker images | `main` |
+| `dev` | — | Alpha releases `vX.Y.Z-a` | `test` |
+| `test` | — | Beta releases `vX.Y.Z-b`, Docker images | `main` |
 | `main` | — | Stable releases `vX.Y.Z` | — |
 
 - Issue branches cannot be named `vX.Y.Z-a/…` (Git cannot hold a branch and sub-branches of the same name).
+- The milestone branch `vX.Y.Z-a` is deleted when merged into `dev`, where the release creates the tag of the same name. Delete your local copy too (`git branch -d vX.Y.Z-a`).
+- A version is released once per stage: a defect found in `vX.Y.Z-b` is fixed in the next patch milestone.
 - Issue PRs are **squash-merged**; milestone and promotion PRs use **merge commits**.
 - **Every PR is reviewed and merged by a human.** PRs into `dev`, `test` and `main` must have a green Selenium suite; the reviewer opens its report (linked in the PR comment) before approving.
 

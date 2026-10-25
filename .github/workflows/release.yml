@@ -2,6 +2,7 @@ name: "Create GitHub Release"
 
 # Triggered when a version tag is pushed (by bump-and-tag.yml or manually).
 # Extracts release notes from CHANGELOG.md and creates a GitHub Release.
+# Tags: vX.Y.Z-a (dev, pre-release), vX.Y.Z-b (test, pre-release), vX.Y.Z (main, release).
 
 on:
   push:
@@ -10,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to (re)create the release for, e.g. v0.2.0-beta.1"
+        description: "Existing tag to (re)create the release for, e.g. v0.1.7-b"
         required: true
 
 jobs:
@@ -25,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          ref: ${{ env.TAG }}
+          ref: refs/tags/${{ env.TAG }}
 
       - name: Extract release notes from CHANGELOG
         shell: python
@@ -50,7 +51,7 @@ jobs:
 
       - name: Determine pre-release status
         run: |
-          if [[ "$TAG" == *"-alpha."* ]] || [[ "$TAG" == *"-beta."* ]]; then
+          if [[ "$TAG" == *-a ]] || [[ "$TAG" == *-b ]]; then
             echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
           else
             echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"

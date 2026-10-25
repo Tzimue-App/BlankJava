@@ -23,7 +23,7 @@ Bump-e2e: 0
 
 ### Deployment & Configuration
 - Push suite, pull request suite with diff coverage, Selenium suite with Allure report for reviewers
-- Milestone branch flow (vX.Y.Z-a), SemVer pre-release counters, release to main with back-merges
+- Milestone branch flow (vX.Y.Z-a), releases vX.Y.Z-a (dev) → vX.Y.Z-b (test) → vX.Y.Z (main) with back-merges
 - Issue templates, pull request template, issue guidelines, GitHub setup checklist, roadmap
 
 ### ChangeLog

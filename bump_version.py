@@ -5,21 +5,24 @@ bump_version.py — Milestones, version bumps and PR checks for this project.
 See docs/technical_analysis.md §8.
 
 Versions:
-    - Project: root package.json "version", SemVer with pre-release counters:
-      X.Y.Z-alpha.0 (milestone branch) → X.Y.Z-alpha.N (dev) → X.Y.Z-beta.N (test) → X.Y.Z (main).
+    - Project: root package.json "version", one tag per stage and version:
+      X.Y.Z-a (milestone branch, tagged vX.Y.Z-a on dev) → X.Y.Z-b (test) → X.Y.Z (main).
+      A version is released once per stage; a defect found later ships in the next version.
     - Components: one SemVer each, in the version file listed in the root package.json
       "components" field (gradle.properties, package.json or an OpenAPI .yaml).
 
 Branches:
     dev → vX.Y.Z-a (milestone) → <type>/<issue>-<slug> (one per issue)
     issue → vX.Y.Z-a → dev → test → main, each by pull request.
+    The milestone branch and the dev tag share the name vX.Y.Z-a, so every git command
+    here uses full refs (refs/heads/…, refs/tags/…).
 
 CHANGELOG.md [Unreleased] holds the release notes and one line per component:
     Bump-backend: 2     (0 = unchanged, 1 = major, 2 = minor, 3 = patch)
 
 Usage:
-    python bump_version.py --start-milestone 0.2.0          # Create milestone branch v0.2.0-a from dev
-    python bump_version.py --check origin/dev --head-ref v0.2.0-a   # Validate a PR (CI)
+    python bump_version.py --start-milestone 0.1.7          # Create milestone branch v0.1.7-a from dev
+    python bump_version.py --check origin/dev --head-ref v0.1.7-a   # Validate a PR (CI)
     python bump_version.py --ci                             # Release after a merge into dev/test/main (CI)
     python bump_version.py                                  # Same, interactive
     python bump_version.py --dry-run                        # Preview without writing
@@ -52,7 +55,7 @@ VERSION_BLOCK_PATTERN = re.compile(
     re.DOTALL
 )
 
-PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(a|b)\.(\d+))?$")
+PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(a|b))?$")
 MILESTONE_BRANCH_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)-a$")
 COMPONENT_BUMP_PATTERN = re.compile(r"^\s*bump-([\w\-]+)\s*:\s*\[?(\d)\]?", re.IGNORECASE | re.MULTILINE)
 OPENAPI_VERSION_PATTERN = re.compile(
@@ -127,8 +130,10 @@ def command_succeeds(cmd):
 
 
 def get_current_branch():
-    """Returns the current Git branch name."""
-    return run_command("git rev-parse --abbrev-ref HEAD")
+    """Returns the current Git branch name (full ref stripped: --abbrev-ref would print
+    heads/vX.Y.Z-a when a tag has the same name)."""
+    ref = run_command("git symbolic-ref -q HEAD", abort_on_error=False)
+    return ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else "HEAD"
 
 
 def read_file(path):
@@ -175,13 +180,12 @@ def branch_name(ref):
 # ──────────────────────────────────────────────
 
 def parse_project_version(version):
-    """Returns (base, stage, counter) for X.Y.Z, X.Y.Z-alpha.N or X.Y.Z-beta.N."""
+    """Returns (base, stage) for X.Y.Z, X.Y.Z-a or X.Y.Z-b; stage is 'a', 'b' or None."""
     match = PROJECT_VERSION_PATTERN.match(version or "")
     if not match:
-        print(f"❌ Unrecognised project version: {version} (expected X.Y.Z, X.Y.Z-alpha.N or X.Y.Z-beta.N)")
+        print(f"❌ Unrecognised project version: {version} (expected X.Y.Z, X.Y.Z-a or X.Y.Z-b)")
         sys.exit(1)
-    base, stage, counter = match.groups()
-    return base, stage, int(counter) if counter is not None else None
+    return match.group(1), match.group(2)
 
 
 def get_current_version():
@@ -329,16 +333,9 @@ def bump_type_between(previous_base, target_base):
     return None
 
 
-def next_counter(base, stage):
-    """Returns 1 + the highest N among existing tags vBASE-STAGE.N."""
-    tags = run_command(f'git tag --list "v{base}-{stage}.*"', abort_on_error=False).splitlines()
-    counters = [int(m.group(1)) for t in tags if (m := re.match(rf"^v{re.escape(base)}-{stage}\.(\d+)$", t))]
-    return max(counters, default=0) + 1
-
-
-def stable_tag_exists(base):
-    """Returns True if the stable tag vBASE exists."""
-    return bool(run_command(f"git tag --list v{base}", abort_on_error=False))
+def tag_exists(tag):
+    """Returns True if the tag exists (checked as refs/tags/, never as a branch)."""
+    return command_succeeds(f"git rev-parse --verify --quiet refs/tags/{tag}")
 
 
 def previous_release_base(ref="HEAD"):
@@ -392,16 +389,16 @@ def validate_bumps(component_bumps, components, changed_components=(), base_bump
 
 def get_stage_name(version):
     """Returns the human-readable stage name."""
-    _, stage, _ = parse_project_version(version)
-    return {"alpha": "Alpha", "beta": "Beta"}.get(stage, "Stable")
+    _, stage = parse_project_version(version)
+    return {"a": "Alpha", "b": "Beta"}.get(stage, "Stable")
 
 
 def get_status_alert(version):
     """Returns the Markdown alert for the release notes."""
-    _, stage, _ = parse_project_version(version)
-    if stage == "alpha":
+    _, stage = parse_project_version(version)
+    if stage == "a":
         return "> [!WARNING]\n> **Status: Alpha.** Development build for internal integration testing."
-    if stage == "beta":
+    if stage == "b":
         return "> [!IMPORTANT]\n> **Status: Beta.** Stabilised test build."
     return "> [!TIP]\n> **Status: Stable.** Completed milestone release."
 
@@ -479,8 +476,8 @@ def parse_sections(block_body):
 def aggregate_alpha_blocks(tag, stop_stages):
     """
     Inserts at the top a block for `tag` that merges every Alpha block written since
-    the last block whose stage is in stop_stages (beta/stable for a beta, stable for a
-    stable release). Beta blocks in between are skipped: they repeat their alphas.
+    the last block whose stage is in stop_stages ('b'/stable for a beta, stable for a
+    stable release). Beta (-b) blocks in between are skipped: they repeat their alphas.
     The original blocks stay untouched below (history is preserved).
     """
     content = read_file(CHANGELOG_FILE)
@@ -490,7 +487,7 @@ def aggregate_alpha_blocks(tag, stop_stages):
         stage = parse_project_version(b.group(1))[1]
         if stage in stop_stages:
             break
-        if stage == "alpha":
+        if stage == "a":
             consumed_blocks.append(b)
 
     # Merge the sections, oldest to newest (chronological order)
@@ -536,17 +533,17 @@ def git_commit(message, files):
 
 def git_tag(tag):
     """Creates an annotated tag, refusing to reuse an existing one."""
-    if run_command(f"git tag --list {tag}"):
+    if tag_exists(tag):
         print(f"❌ Tag {tag} already exists. Did the previous bump fail half-way?")
         sys.exit(1)
-    run_command(f'git tag -a {tag} -m "Release {tag}"')
+    run_command(f'git tag -a {tag} -m "Release {tag}" HEAD')
 
 
 def git_push(branch, tag=None):
-    """Pushes the branch (and the tag) to origin."""
-    run_command(f"git push origin {branch}")
+    """Pushes the branch (and the tag) to origin, with full refs: a tag and a branch may share a name."""
+    run_command(f"git push origin refs/heads/{branch}:refs/heads/{branch}")
     if tag:
-        run_command(f"git push origin {tag}")
+        run_command(f"git push origin refs/tags/{tag}:refs/tags/{tag}")
 
 
 def back_merge(source, target, tag):
@@ -556,14 +553,14 @@ def back_merge(source, target, tag):
     """
     print(f"🔄 Back-merge {source} → {target}...")
     run_command(f"git checkout {target}")
-    run_command(f"git pull --ff-only origin {target}")
-    if command_succeeds(f'git merge {source} -m "chore: back-merge {source} into {target} [bump_version]"'):
-        run_command(f"git push origin {target}")
+    run_command(f"git pull --ff-only origin refs/heads/{target}")
+    if command_succeeds(f'git merge refs/heads/{source} -m "chore: back-merge {source} into {target} [bump_version]"'):
+        run_command(f"git push origin refs/heads/{target}:refs/heads/{target}")
         print(f"   ✅ Back-merge {source} → {target} done")
     else:
         run_command("git merge --abort", abort_on_error=False)
         branch = f"backmerge/{tag}-into-{target}"
-        run_command(f"git push origin {source}:refs/heads/{branch}")
+        run_command(f"git push origin refs/heads/{source}:refs/heads/{branch}")
         print(f"⚠️  Back-merge {source} → {target} conflicts. Pushed {branch} for manual resolution.")
         opened = shutil.which("gh") and command_succeeds(
             f'gh pr create --base {target} --head {branch} '
@@ -583,7 +580,7 @@ def back_merge(source, target, tag):
 # ──────────────────────────────────────────────
 
 def start_milestone(target, dry_run, push=True):
-    """Creates the milestone branch vTARGET-a from dev with the project at TARGET-alpha.0."""
+    """Creates the milestone branch vTARGET-a from dev with the project at TARGET-a."""
     target = target.lstrip("v")
     if not re.match(r"^\d+\.\d+\.\d+$", target):
         print(f"❌ Milestone version must be X.Y.Z, got {target}")
@@ -594,34 +591,35 @@ def start_milestone(target, dry_run, push=True):
         print(f"❌ Milestones start from 'dev'. Current branch: {branch}")
         sys.exit(1)
 
+    # The target is the next major, minor or patch of the current version. The current
+    # version itself is only allowed again if it was never released (abandoned milestone).
     current_base = parse_project_version(get_current_version())[0]
     bump = bump_type_between(current_base, target)
-    if bump is None or (bump == 0 and stable_tag_exists(target)):
+    if bump is None or tag_exists(f"v{target}-a"):
         allowed = [bump_base_version(current_base, b) for b in (1, 2, 3)]
-        if not stable_tag_exists(current_base):
-            allowed.append(f"{current_base} (fix round)")
-        print(f"❌ v{target} does not follow {current_base}. Allowed: {', '.join(allowed)}")
+        print(f"❌ v{target} cannot start after {current_base} (already released or not the next version). "
+              f"Allowed: {', '.join(allowed)}")
         sys.exit(1)
 
     milestone_branch = f"v{target}-a"
-    if run_command(f"git branch --list {milestone_branch}") or \
-            run_command(f"git ls-remote --heads origin {milestone_branch}", abort_on_error=False):
+    if command_succeeds(f"git rev-parse --verify --quiet refs/heads/{milestone_branch}") or \
+            run_command(f"git ls-remote --heads origin refs/heads/{milestone_branch}", abort_on_error=False):
         print(f"❌ Branch {milestone_branch} already exists.")
         sys.exit(1)
 
-    kind = "fix round" if bump == 0 else BUMP_LABELS[bump].lower()
-    print(f"🏁 Milestone v{target} ({kind}) → branch {milestone_branch}, project {target}-alpha.0")
+    kind = BUMP_LABELS[bump].lower() if bump else "restart of an unreleased version"
+    print(f"🏁 Milestone v{target} ({kind}) → branch {milestone_branch}, project {target}-a")
     if dry_run:
         print("\n🔍 Dry-run mode — no changes applied.")
         return
 
     run_command(f"git checkout -b {milestone_branch}")
-    files = update_package_json_version(PACKAGE_JSON, f"{target}-alpha.0")
+    files = update_package_json_version(PACKAGE_JSON, f"{target}-a")
     if ensure_unreleased_section(get_components()):
         files.append(CHANGELOG_FILE)
     git_commit(f"chore(release): start milestone v{target} [bump_version]", files)
     if push:
-        run_command(f"git push -u origin {milestone_branch}")
+        run_command(f"git push -u origin refs/heads/{milestone_branch}:refs/heads/{milestone_branch}")
     print(f"✅ Branch {milestone_branch} ready. Create one issue branch per issue from it.")
 
 
@@ -655,13 +653,15 @@ def check(base_ref, head_ref=None):
         base_changelog = run_command(f"git show {base_ref}:{CHANGELOG_FILE}", abort_on_error=False)
         base_bumps = extract_component_bumps(base_changelog) or {}
 
-        # 2. Project version of the milestone
+        # 2. Project version of the milestone: X.Y.Z-a, matching the branch, not released yet
         version = get_current_version()
-        target, stage, counter = parse_project_version(version)
+        target, stage = parse_project_version(version)
         project_bump = None
-        if stage != "alpha" or counter != 0:
-            errors.append(f"Project version is {version}; a milestone branch must carry X.Y.Z-alpha.0 "
+        if stage != "a":
+            errors.append(f"Project version is {version}; a milestone branch must carry X.Y.Z-a "
                           f"(use --start-milestone).")
+        elif tag_exists(f"v{target}-a"):
+            errors.append(f"v{target}-a is already released: start a new milestone with the next version.")
         else:
             branch_for_version = head if base == "dev" else base
             branch_match = MILESTONE_BRANCH_PATTERN.match(branch_for_version or "")
@@ -669,7 +669,7 @@ def check(base_ref, head_ref=None):
                 errors.append(f"Project version {version} does not match milestone branch {branch_for_version}.")
             project_bump = bump_type_between(previous_release_base(base_ref), target) or None
 
-        print(f"📋 Milestone: v{target} ({BUMP_LABELS.get(project_bump, 'fix round')})")
+        print(f"📋 Milestone: v{target} ({BUMP_LABELS.get(project_bump, 'unknown bump')})")
         print(f"📋 Changed components: {', '.join(changed_components) or 'none'}")
         for name in components:
             print(f"   Bump-{name}: {BUMP_LABELS.get(component_bumps.get(name), 'missing')}")
@@ -689,7 +689,12 @@ def check(base_ref, head_ref=None):
 
 
 def release(ci, dry_run):
-    """Releases after a merge into dev (alpha), test (beta) or main (stable)."""
+    """
+    Releases after a merge:
+        dev  : X.Y.Z-a (from the milestone) → tag vX.Y.Z-a, component bumps applied
+        test : X.Y.Z-a → X.Y.Z-b, tag vX.Y.Z-b
+        main : X.Y.Z-b → X.Y.Z,   tag vX.Y.Z
+    """
     print(f"🚀 {get_project_name()} — Release")
     print("=" * 40)
 
@@ -701,24 +706,19 @@ def release(ci, dry_run):
 
     components = get_components()
     current = get_current_version()
-    base, stage, counter = parse_project_version(current)
+    base, stage = parse_project_version(current)
     print(f"📦 Current version: {current}")
 
     # What was merged decides what is released; anything else is a no-op
-    expected_stage = {"dev": ("alpha", 0), "test": ("alpha", None), "main": ("beta", None)}[branch]
-    if stage != expected_stage[0] or (expected_stage[1] is not None and counter != expected_stage[1]) \
-            or (branch == "test" and counter == 0):
+    expected_stage = {"dev": "a", "test": "a", "main": "b"}[branch]
+    new_stage = BRANCH_STAGE_MAP[branch]
+    new_version = f"{base}-{new_stage}" if new_stage else base
+    tag = f"v{new_version}"
+    if stage != expected_stage or tag_exists(tag) or (branch == "test" and not tag_exists(f"v{base}-a")):
         print(f"ℹ️  {current} is not a version to release from {branch} — nothing to do.")
         return
 
     component_updates = {}
-    new_stage = BRANCH_STAGE_MAP[branch]
-    if new_stage:
-        new_version = f"{base}-{new_stage}.{next_counter(base, new_stage)}"
-    else:
-        new_version = base
-    tag = f"v{new_version}"
-
     if branch == "dev":
         component_bumps = get_component_bumps()
         errors = validate_bumps(component_bumps, components)
@@ -739,19 +739,21 @@ def release(ci, dry_run):
         return
 
     if not ci:
-        confirm = input(f"\n Apply {current} → {new_version}? (y/N): ").strip().lower()
+        confirm = input(f"\n Release {tag}? (y/N): ").strip().lower()
         if confirm != "y":
             print("❌ Cancelled by user.")
             sys.exit(0)
 
     print("\n📝 Updating files...")
-    changed_files = update_package_json_version(PACKAGE_JSON, new_version)
+    changed_files = []
+    if new_version != current:
+        changed_files += update_package_json_version(PACKAGE_JSON, new_version)
     for name, version in component_updates.items():
         changed_files += write_component_version(components[name], version)
     if branch == "dev":
         freeze_unreleased(tag, format_components_line(get_component_versions(components), component_updates))
     elif branch == "test":
-        aggregate_alpha_blocks(tag, stop_stages=("beta", None))
+        aggregate_alpha_blocks(tag, stop_stages=("b", None))
     else:
         aggregate_alpha_blocks(tag, stop_stages=(None,))
     changed_files.append(CHANGELOG_FILE)

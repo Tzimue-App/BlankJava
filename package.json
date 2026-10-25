@@ -1,6 +1,6 @@
 {
   "name": "blankjava",
-  "version": "v0.0.0-a",
+  "version": "0.0.0",
   "private": true,
   "description": "Full-stack Java foundation: Spring Boot API, Angular frontend and Selenium end-to-end tests, with user registration, login and user display.",
   "repository": {

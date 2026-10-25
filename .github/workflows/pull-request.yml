@@ -6,6 +6,12 @@ name: "Pull request suite"
 # directives, Docker image build and dependency review.
 # Selenium runs last, against the full stack, for every PR into dev, test and main, and for PRs
 # into a milestone branch labelled "run-e2e". The human reviewer validates the PR with its report.
+#
+# Branch rulesets require ONE check: "pr-gate". It runs after every other job and fails if any
+# of them failed or was cancelled, or if Selenium did not pass where it is mandatory. Job names
+# can therefore change (or jobs be skipped) without touching the rulesets.
+# Every event, including "labeled", runs the full suite: a run that skipped its jobs would
+# otherwise report green checks for the PR's latest commit.
 
 on:
   pull_request:
@@ -30,8 +36,6 @@ env:
 
 jobs:
   flow-and-versions:
-    # A "labeled" event only matters for the run-e2e label
-    if: github.event.action != 'labeled' || github.event.label.name == 'run-e2e'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -50,7 +54,6 @@ jobs:
         run: python bump_version.py --check "$BASE_REF" --head-ref "$HEAD_REF"
 
   changes:
-    if: github.event.action != 'labeled' || github.event.label.name == 'run-e2e'
     runs-on: ubuntu-latest
     outputs:
       api: ${{ steps.modules.outputs.api }}
@@ -228,7 +231,6 @@ jobs:
           done
 
   dependency-review:
-    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -251,3 +253,43 @@ jobs:
       contents: read
       pull-requests: write
     uses: ./.github/workflows/e2e.yml
+
+  pr-gate:
+    # The only check required by the branch rulesets
+    needs: [flow-and-versions, changes, api, backend, frontend, e2e-compile, docker-build, dependency-review, selenium]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every job result
+        shell: python
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          SELENIUM_EXPECTED: >-
+            ${{ needs.changes.outputs.stack == 'true' &&
+                (contains(fromJSON('["dev","test","main"]'), github.base_ref) ||
+                 contains(github.event.pull_request.labels.*.name, 'run-e2e')) }}
+        run: |
+          import json, os
+
+          results = {job: data["result"] for job, data in json.loads(os.environ["RESULTS"]).items()}
+          errors = []
+          for job, result in results.items():
+              if result in ("failure", "cancelled"):
+                  errors.append(f"{job}: {result}")
+          # These two always run: skipped means the PR was never checked
+          for job in ("flow-and-versions", "changes"):
+              if results.get(job) != "success":
+                  errors.append(f"{job} must succeed (got {results.get(job)})")
+          if os.environ["SELENIUM_EXPECTED"] == "true" and results.get("selenium") != "success":
+              errors.append(f"selenium is mandatory for this PR (got {results.get('selenium')})")
+
+          lines = ["### Pull request gate", "", "| Job | Result |", "|---|---|"]
+          lines += [f"| {job} | {result} |" for job, result in results.items()]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("\n".join(lines) + "\n")
+
+          for error in errors:
+              print(f"::error::{error}")
+          if errors:
+              raise SystemExit(1)
+          print("All required jobs passed.")

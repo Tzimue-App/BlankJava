@@ -17,7 +17,7 @@ Full-stack Java foundation: a Spring Boot REST API, an Angular frontend and a Se
 ## How work flows
 
 ```text
-dev ──▶ v0.2.0-a (milestone branch) ──▶ feat/14-register-page (one branch per issue)
+dev ──▶ v0.1.7-a (milestone branch) ──▶ feat/14-register-page (one branch per issue)
          ▲            │                          │
          │            └──── PR, human review ◀───┘
          └── PR + Selenium report + human review ──▶ dev ──▶ test ──▶ main
@@ -26,9 +26,9 @@ dev ──▶ v0.2.0-a (milestone branch) ──▶ feat/14-register-page (one b
 - Start a milestone from `dev`:
 
 ```bash
-python bump_version.py --start-milestone 0.2.0
+python bump_version.py --start-milestone 0.1.7
 ```
 
 - Each issue PR fills the `[Unreleased]` section of [CHANGELOG.md](CHANGELOG.md) and sets `Bump-<component>:` for each component it changes.
-- Merges into `dev`, `test` and `main` release `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N` and `vX.Y.Z` automatically.
+- Merges into `dev`, `test` and `main` release `vX.Y.Z-a`, `vX.Y.Z-b` and `vX.Y.Z` automatically (e.g. `v0.1.7-a` → `v0.1.7-b` → `v0.1.7`).
 - Issues follow [.github/ISSUE_GUIDELINES.md](.github/ISSUE_GUIDELINES.md).
