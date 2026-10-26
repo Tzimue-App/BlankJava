@@ -262,7 +262,8 @@ jobs:
         run: |
           for module in backend frontend; do
             if [ -f "$module/Dockerfile" ]; then
-              docker buildx build "$module"
+              # Root context: images are generated from api/openapi.yaml
+              docker buildx build -f "$module/Dockerfile" .
             else
               echo "No $module/Dockerfile yet, skipping."
             fi

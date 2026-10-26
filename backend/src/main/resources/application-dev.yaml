@@ -1,0 +1,13 @@
+# Local development: ./gradlew bootRun --args='--spring.profiles.active=dev'
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    # Display the contract (copied from api/openapi.yaml at build), not a spec rebuilt from the code
+    url: /openapi.yaml
+
+logging:
+  level:
+    com.blankjava: debug
+    org.hibernate.SQL: debug
