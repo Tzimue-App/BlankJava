@@ -1,7 +1,7 @@
 name: Improvement
 description: Refactoring, performance, security hardening, dependency upgrade, tooling, CI or docs. Nothing is broken and nothing new is user-visible.
 title: "<refactor|perf|security|chore|ci|docs|test>(<area>): <outcome>"
-labels: ["type: improvement", "status: Todo"]
+labels: ["type: improvement", "status: needs-triage"]
 body:
   - type: markdown
     attributes:

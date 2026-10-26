@@ -38,9 +38,9 @@ Security vulnerabilities are **never** filed as issues: use *Security → Report
 | Label | Meaning |
 |---|---|
 | `type: bug` / `type: feature` / `type: improvement` | Set by the template |
-| `status: Todo` | Set by the template; removed at triage |
-| `status: In Progress` | Can be picked up |
-| `status: In Review` | Waiting on another issue or decision |
+| `status: needs-triage` | Set by the template; removed at triage |
+| `status: ready` | Can be picked up |
+| `status: blocked` | Waiting on another issue or decision |
 | `priority: high` / `priority: medium` / `priority: low` | Set at triage |
 | `run-e2e` | On a PR into a milestone branch: also run the Selenium suite (it always runs on PRs into `dev`, `test`, `main`) |
 

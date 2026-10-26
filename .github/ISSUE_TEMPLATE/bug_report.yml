@@ -1,7 +1,7 @@
 name: Bug report
 description: Existing behaviour is wrong.
 title: "fix(<area>): <observable problem>"
-labels: ["type: bug", "status: Todo"]
+labels: ["type: bug", "status: needs-triage"]
 body:
   - type: markdown
     attributes:
