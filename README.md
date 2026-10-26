@@ -4,7 +4,7 @@ Full-stack Java foundation: a Spring Boot REST API, an Angular frontend and a Se
 
 | Component | Stack | Version file |
 |---|---|---|
-| `api/` | OpenAPI 3.1 contract (source of truth for backend and frontend) | `api/openapi.yaml` (`info.version`) |
+| `api/` | OpenAPI 3.2 contract (source of truth for backend and frontend) | `api/openapi.yaml` (`info.version`) |
 | `backend/` | Java 25, Spring Boot 4, Spring Security (JWT RS256, Argon2id), Spring Data JPA, Flyway, PostgreSQL | `backend/gradle.properties` |
 | `frontend/` | Angular multi-project workspace, feature-based and lazy-loaded, Vitest, served by Nginx (TLS) | `frontend/package.json` |
 | `e2e/` | Selenium 4, JUnit, Page Objects, Allure report | `e2e/gradle.properties` |

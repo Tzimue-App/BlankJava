@@ -1,7 +1,7 @@
 name: Feature request
 description: A new user-visible capability that does not exist today.
 title: "feat(<area>): <outcome for the user>"
-labels: ["type: feature", "status: needs-triage"]
+labels: ["type: feature", "status: Todo"]
 body:
   - type: markdown
     attributes:
