@@ -58,8 +58,11 @@ VERSION_BLOCK_PATTERN = re.compile(
 PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(a|b))?$")
 MILESTONE_BRANCH_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)-a$")
 COMPONENT_BUMP_PATTERN = re.compile(r"^\s*bump-([\w\-]+)\s*:\s*\[?(\d)\]?", re.IGNORECASE | re.MULTILINE)
+# Each line skipped inside "info:" starts with exactly one blank, so it can only be matched one
+# way. "[ \t]+.*" would let both parts match the leading blanks and backtrack exponentially when
+# no "version:" follows (CodeQL py/redos).
 OPENAPI_VERSION_PATTERN = re.compile(
-    r"(^info:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+version:[ \t]*[\"']?)([^\"'\s]+)", re.MULTILINE
+    r"(^info:[ \t]*\n(?:[ \t][^\n]*\n)*?[ \t]+version:[ \t]*[\"']?)([^\"'\s]+)", re.MULTILINE
 )
 COMPONENTS_LINE_PREFIX = "**Components:**"
 

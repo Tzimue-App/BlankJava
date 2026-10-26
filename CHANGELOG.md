@@ -20,13 +20,16 @@ Bump-e2e: 0
 ### Patches
 
 ### Bug Fixes
+- Release script: linear-time parsing of the OpenAPI `info.version` (code scanning alert #1, #9)
 
 ### Deployment & Configuration
 - Push suite, pull request suite with diff coverage, Selenium suite with Allure report for reviewers
 - Milestone branch flow (vX.Y.Z-a), releases vX.Y.Z-a (dev) → vX.Y.Z-b (test) → vX.Y.Z (main) with back-merges
 - Issue templates, pull request template, issue guidelines, GitHub setup checklist, roadmap
+- Release script tests run by a `tooling` job in the push and pull request suites, required through `pr-gate` (#9)
+- 10-minute timeout on the release and start-milestone workflows (#9)
 
 ### ChangeLog
-- Technical analysis v3.0
+- Technical analysis v3.2
 
 ---
