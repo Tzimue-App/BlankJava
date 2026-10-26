@@ -130,6 +130,43 @@ class ProjectVersionTest(unittest.TestCase):
         self.assertIsNone(bv.bump_type_between("0.1.7", "0.3.0"))
 
 
+class ReleaseDryRunTest(unittest.TestCase):
+    """`python bump_version.py --dry-run` on an issue or milestone branch (issue #2)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        os.mkdir("api")
+        write("package.json", json.dumps({"name": "blankjava", "version": "0.1.0-a",
+                                          "components": {"api": "api/openapi.yaml"}}, indent=2) + "\n")
+        write("api/openapi.yaml", "openapi: 3.1.1\ninfo:\n  title: X\n  version: 0.0.0\npaths: {}\n")
+        write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\nBump-api: 2\n\n### Features\n- Contract\n\n---\n")
+        self.real_branch = bv.get_current_branch
+        bv.get_current_branch = lambda: "chore/2-api-contract-skeleton"
+
+    def tearDown(self):
+        bv.get_current_branch = self.real_branch
+        os.chdir(self.cwd)
+        self.tmp.cleanup()
+
+    def test_previews_a_merge_into_dev_and_lists_component_versions(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            bv.release(ci=True, dry_run=True)
+        text = out.getvalue()
+        self.assertIn("previewing a merge into dev", text)
+        self.assertIn("api: 0.0.0", text)
+        self.assertIn("api: 0.0.0 → 0.1.0 (Minor)", text)
+        self.assertIn("New version: 0.1.0-a", text)
+        # Nothing written
+        self.assertIn("version: 0.0.0", read("api/openapi.yaml"))
+
+    def test_without_dry_run_an_issue_branch_is_refused(self):
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            bv.release(ci=True, dry_run=False)
+
+
 class ChangelogBumpsTest(unittest.TestCase):
     CHANGELOG = (
         "# Changelog\n\n## [Unreleased]\n\n<!--\nBump-api: 1 (example in the help comment)\n-->\n"

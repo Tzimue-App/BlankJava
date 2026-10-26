@@ -1,0 +1,55 @@
+# Lint rules for api/openapi.yaml (docs/technical_analysis.md §4.1, §7.3).
+# Run from the repository root:
+#   npx --yes @stoplight/spectral-cli@6.17.0 lint api/openapi.yaml --ruleset api/.spectral.yaml --fail-severity=warn
+extends:
+  - "spectral:oas"
+
+rules:
+  # Generated method names (backend interfaces, Angular client) come from operationId
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-tag-defined: error
+  operation-description: warn
+
+  # The contract stays on OpenAPI 3.1 until the generators read 3.2 (#11)
+  blankjava-openapi-3-1:
+    description: The contract must declare OpenAPI 3.1.x.
+    message: "OpenAPI {{value}} is not supported by the code generators; use 3.1.x (see api/README.md)."
+    severity: error
+    given: "$.openapi"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^3\\.1\\.\\d+$"
+
+  blankjava-camel-case-properties:
+    description: Schema property names are camelCase (JSON payloads, generated DTOs).
+    message: "Property '{{property}}' must be camelCase."
+    severity: error
+    given: "$..properties[*]~"
+    then:
+      function: casing
+      functionOptions:
+        type: camel
+
+  blankjava-error-response:
+    description: Every operation documents its errors with a default Problem response.
+    message: "Operation must document a 'default' response (Problem, application/problem+json)."
+    severity: error
+    given: "$.paths[*][get,put,post,delete,patch,options,head,trace].responses"
+    then:
+      field: default
+      function: truthy
+
+  blankjava-problem-media-type:
+    description: Error responses use application/problem+json (RFC 9457).
+    message: "Error response {{property}} must use application/problem+json."
+    severity: error
+    given: "$.paths[*][*].responses[?(@property >= '400' || @property == 'default')].content"
+    then:
+      field: application/problem+json
+      function: truthy
+
+  # No endpoint exists yet, so the shared components are not referenced.
+  # Re-enable when the first operation is added (#6 adds POST /client-logs).
+  oas3-unused-component: off

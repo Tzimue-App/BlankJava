@@ -10,12 +10,13 @@ A component whose directory changed must be bumped. Over a milestone, keep the m
 significant bump (a PR may raise a value, never lower it).
 The project version comes from the milestone branch (vX.Y.Z-a).
 -->
-Bump-api: 0
+Bump-api: 2
 Bump-backend: 0
 Bump-frontend: 0
 Bump-e2e: 0
 
 ### Features
+- API contract skeleton `api/openapi.yaml` (OpenAPI 3.1): shared `Problem` schema (RFC 9457 with `traceId`), standard error responses, `bearerAuth` scheme (#2)
 
 ### Patches
 
@@ -29,6 +30,7 @@ Bump-e2e: 0
 - Release script tests run by a `tooling` job in the push and pull request suites, required through `pr-gate` (#9)
 - 10-minute timeout on the release and start-milestone workflows (#9)
 - Issue status tracked on the Project board only; `status:` labels removed from the issue templates and guidelines (#10)
+- Contract checks in CI with pinned tools: Spectral 6.17.0 with the project ruleset (push and PR suites), openapi-generator 7.26.0 and ng-openapi-gen 1.1.0 must accept the contract (PR suite) (#2)
 
 ### ChangeLog
 - Technical analysis v3.2

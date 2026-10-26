@@ -1,0 +1,100 @@
+openapi: 3.1.1
+info:
+  title: BlankJava API
+  version: 0.0.0
+  description: |
+    Contract of the BlankJava REST API, source of truth for the Spring Boot backend
+    (generated interfaces) and the Angular frontend (generated client).
+    OpenAPI 3.1 on purpose: the generators cannot read 3.2 yet (see api/README.md).
+  contact:
+    name: BlankJava maintainers
+    url: https://github.com/Tzimue-App/BlankJava
+servers:
+  - url: /api
+    description: Same origin, behind the Nginx reverse proxy
+tags:
+  - name: system
+    description: Technical endpoints shared by every feature
+paths: {}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Short-lived access token (RS256), sent as `Authorization: Bearer <token>`."
+  schemas:
+    Problem:
+      type: object
+      description: |
+        Error response, RFC 9457 Problem Details (`application/problem+json`).
+        Further members may be added by specific errors.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: about:blank
+          description: URI identifying the problem type.
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 599
+          description: HTTP status code of this occurrence.
+        detail:
+          type: string
+          description: Human-readable explanation of this occurrence.
+        instance:
+          type: string
+          format: uri-reference
+          description: URI identifying this occurrence.
+        traceId:
+          type: string
+          description: Trace id of the request, to find it in the logs (W3C Trace Context).
+      required:
+        - type
+        - title
+        - status
+        - traceId
+      additionalProperties: true
+      example:
+        type: about:blank
+        title: Not Found
+        status: 404
+        detail: No resource at /api/unknown
+        instance: /api/unknown
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+  responses:
+    BadRequest:
+      description: The request is invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Authentication is missing, expired or invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: The resource does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: The request conflicts with the current state of the resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

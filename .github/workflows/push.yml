@@ -81,8 +81,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Lint the OpenAPI contract
-        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi.yaml
+      # Project rules live in api/.spectral.yaml; Spectral only auto-loads a ruleset from the
+      # working directory, so it is passed explicitly. Warnings fail the job.
+      - name: Lint the OpenAPI contract (Spectral 6.17.0)
+        run: npx --yes @stoplight/spectral-cli@6.17.0 lint api/openapi.yaml --ruleset api/.spectral.yaml --fail-severity=warn
 
   backend:
     needs: changes
