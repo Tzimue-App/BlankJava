@@ -60,6 +60,7 @@ jobs:
       backend: ${{ steps.modules.outputs.backend }}
       frontend: ${{ steps.modules.outputs.frontend }}
       e2e: ${{ steps.modules.outputs.e2e }}
+      tooling: ${{ steps.modules.outputs.tooling }}
       stack: ${{ steps.modules.outputs.stack }}
     steps:
       - name: Checkout repository
@@ -79,8 +80,26 @@ jobs:
           echo "backend=$(has '${{ steps.filter.outputs.backend }}' backend/gradlew)" >> "$GITHUB_OUTPUT"
           echo "frontend=$(has '${{ steps.filter.outputs.frontend }}' frontend/package.json)" >> "$GITHUB_OUTPUT"
           echo "e2e=$(has '${{ steps.filter.outputs.e2e }}' e2e/gradlew)" >> "$GITHUB_OUTPUT"
+          echo "tooling=$(has '${{ steps.filter.outputs.tooling }}' bump_version.py)" >> "$GITHUB_OUTPUT"
           # The Selenium suite needs the whole stack, whatever the PR changed
           echo "stack=$([ -f compose.yaml ] && [ -f e2e/gradlew ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  tooling:
+    # Release script (bump_version.py) and its tests: not a component, so no other job covers it
+    needs: changes
+    if: needs.changes.outputs.tooling == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Release script tests
+        run: python -m unittest discover -s tests -t . -v
 
   api:
     needs: changes
@@ -256,7 +275,7 @@ jobs:
 
   pr-gate:
     # The only check required by the branch rulesets
-    needs: [flow-and-versions, changes, api, backend, frontend, e2e-compile, docker-build, dependency-review, selenium]
+    needs: [flow-and-versions, changes, tooling, api, backend, frontend, e2e-compile, docker-build, dependency-review, selenium]
     if: always()
     runs-on: ubuntu-latest
     steps:
