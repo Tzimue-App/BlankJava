@@ -703,14 +703,20 @@ def release(ci, dry_run):
 
     branch = get_current_branch()
     if branch not in BRANCH_STAGE_MAP:
-        print(f"❌ Releases happen on dev, test or main. Current branch: {branch}")
-        sys.exit(1)
+        if not dry_run:
+            print(f"❌ Releases happen on dev, test or main. Current branch: {branch}")
+            sys.exit(1)
+        # On a milestone or issue branch, preview what merging it into dev would release
+        print(f"⚠️  '{branch}' is not a release branch: previewing a merge into dev.")
+        branch = "dev"
     print(f"📌 Branch: {branch}")
 
     components = get_components()
     current = get_current_version()
     base, stage = parse_project_version(current)
     print(f"📦 Current version: {current}")
+    for name, version in get_component_versions(components).items():
+        print(f"   {name}: {version}")
 
     # What was merged decides what is released; anything else is a no-op
     expected_stage = {"dev": "a", "test": "a", "main": "b"}[branch]

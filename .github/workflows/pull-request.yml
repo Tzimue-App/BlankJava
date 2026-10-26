@@ -109,8 +109,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Lint the OpenAPI contract
-        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi.yaml
+      # Project rules live in api/.spectral.yaml; Spectral only auto-loads a ruleset from the
+      # working directory, so it is passed explicitly. Warnings fail the job.
+      - name: Lint the OpenAPI contract (Spectral 6.17.0)
+        run: npx --yes @stoplight/spectral-cli@6.17.0 lint api/openapi.yaml --ruleset api/.spectral.yaml --fail-severity=warn
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      # The contract must stay readable by both code generators (OpenAPI 3.1, see api/README.md)
+      - name: Backend generator accepts the contract (openapi-generator 7.26.0)
+        run: |
+          GEN="npx --yes @openapitools/openapi-generator-cli@2.42.0 --openapitools api/openapitools.json"
+          $GEN validate -i api/openapi.yaml
+          $GEN generate -i api/openapi.yaml -g spring -o "$RUNNER_TEMP/spring" --dry-run \
+            --additional-properties=interfaceOnly=true,useJakartaEe=true
+
+      - name: Frontend generator accepts the contract (ng-openapi-gen 1.1.0)
+        run: npx --yes ng-openapi-gen@1.1.0 --input api/openapi.yaml --output "$RUNNER_TEMP/angular"
 
   backend:
     needs: changes
