@@ -28,6 +28,7 @@ Bump-e2e: 0
 - Issue templates, pull request template, issue guidelines, GitHub setup checklist, roadmap
 - Release script tests run by a `tooling` job in the push and pull request suites, required through `pr-gate` (#9)
 - 10-minute timeout on the release and start-milestone workflows (#9)
+- Issue status tracked on the Project board only; `status:` labels removed from the issue templates and guidelines (#10)
 
 ### ChangeLog
 - Technical analysis v3.2
