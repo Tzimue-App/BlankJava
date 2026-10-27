@@ -1,0 +1,35 @@
+# Default configuration (container). Secrets come from the environment (.env, Docker secrets).
+spring:
+  application:
+    name: blankjava-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/blankjava}
+    username: ${DB_USER:blankjava}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # The schema belongs to Flyway (docs/technical_analysis.md §4.4)
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
+
+blankjava:
+  # Project release of the image (Docker build argument), shown by /actuator/info
+  release: ${APP_RELEASE:unknown}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+
+# Swagger UI only in the dev profile
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
