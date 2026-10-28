@@ -23,6 +23,7 @@ Bump-e2e: 0
 
 ### Bug Fixes
 - Release script: linear-time parsing of the OpenAPI `info.version` (code scanning alert #1, #9)
+- Backend build: contract version read correctly from a Windows (CRLF) checkout (#16)
 
 ### Deployment & Configuration
 - Push suite, pull request suite with diff coverage, Selenium suite with Allure report for reviewers
