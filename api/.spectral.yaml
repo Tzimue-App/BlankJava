@@ -50,6 +50,6 @@ rules:
       field: application/problem+json
       function: truthy
 
-  # No endpoint exists yet, so the shared components are not referenced.
-  # Re-enable when the first operation is added (#6 adds POST /client-logs).
+  # Shared error responses (Unauthorized, NotFound, Conflict) are prepared for the accounts API
+  # and not referenced yet. Re-enable once M1 (accounts contract) uses them.
   oas3-unused-component: off

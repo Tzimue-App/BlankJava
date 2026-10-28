@@ -42,6 +42,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
+    // Tracing: W3C traceparent in and out, trace ids in the logs; no exporter (nothing is sent)
+    implementation("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
     // Swagger UI on the contract, enabled in the dev profile only
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
     runtimeOnly("org.postgresql:postgresql")

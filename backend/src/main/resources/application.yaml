@@ -26,21 +26,22 @@ server:
       # subnet: the client as seen by Nginx, e.g. the Docker gateway, would then be dropped as
       # one more proxy). Nginx overwrites X-Forwarded-For with the real client address.
       internal-proxies: '172\.30\.0\.10'
-    accesslog:
-      # Switched on by compose.yaml (SERVER_TOMCAT_ACCESSLOG_ENABLED); written to stdout
-      enabled: false
-      directory: /dev
-      prefix: stdout
-      suffix: ""
-      file-date-format: ""
-      buffered: false
-      # The access log is written after RemoteIpValve has restored the proxy's address: read
-      # the client IP it recorded in the request attributes instead
-      request-attributes-enabled: true
-      # %a = client IP after X-Forwarded-For processing; %D = duration in microseconds (Tomcat 10+)
-      pattern: '%a "%r" %s %b %Dus request_id=%{X-Request-Id}i'
+
+logging:
+  structured:
+    # One JSON object per line, Elastic Common Schema field names (docs/technical_analysis.md §6.2)
+    format:
+      console: ecs
+    json:
+      # Trace ids from Micrometer Tracing under their ECS names
+      rename:
+        traceId: trace.id
+        spanId: span.id
 
 blankjava:
+  # One JSON line per request (AccessLogFilter): switched on by compose.yaml
+  access-log:
+    enabled: false
   # Project release of the image (Docker build argument), shown by /actuator/info
   release: ${APP_RELEASE:unknown}
 
@@ -49,6 +50,10 @@ management:
     web:
       exposure:
         include: health, info
+  tracing:
+    sampling:
+      # Every request gets a trace id in its logs; nothing is exported (no collector yet)
+      probability: 1.0
 
 # Swagger UI only in the dev profile
 springdoc:

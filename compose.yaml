@@ -2,7 +2,8 @@
 #   cp .env.example .env
 #   docker compose up --build --wait      -> https://localhost
 #
-# Profiles reserved for later services: e2e and e2e-runner (Selenium, #7), observability (#6).
+# Profiles: observability (Loki, Alloy, Grafana: infra/observability/README.md);
+# reserved: e2e and e2e-runner (Selenium, #7).
 
 name: blankjava
 
@@ -16,6 +17,8 @@ x-logging: &logging
 services:
   postgres:
     image: postgres:18-alpine
+    # Statements slower than 500 ms are logged (docs/technical_analysis.md §6.4)
+    command: ["postgres", "-c", "log_min_duration_statement=500"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
@@ -45,8 +48,8 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      # One access log line per request, with the client IP seen by the backend
-      SERVER_TOMCAT_ACCESSLOG_ENABLED: "true"
+      # One JSON access log line per request, with trace id and the client IP seen by the backend
+      BLANKJAVA_ACCESS_LOG_ENABLED: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,9 +120,59 @@ services:
         ipv4_address: 172.30.0.10
     logging: *logging
 
+  # ---- observability profile: docker compose --profile observability up -d (infra/observability) ----
+  loki:
+    profiles: [observability]
+    image: grafana/loki:3.7.9
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./infra/observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    # Query API on this machine only (curl, scripts)
+    ports:
+      - "127.0.0.1:3100:3100"
+    # No health check: the image has no shell. Alloy retries pushes until Loki is ready (~15 s).
+    networks: [stack]
+    logging: *logging
+
+  alloy:
+    profiles: [observability]
+    image: grafana/alloy:v1.21.2
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    volumes:
+      - ./infra/observability/config.alloy:/etc/alloy/config.alloy:ro
+      # Reads container logs through the Docker API (read-only)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      loki:
+        condition: service_started
+    networks: [stack]
+    logging: *logging
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana:13.3.0
+    environment:
+      # Local tool only (bound to 127.0.0.1): no login, Explore allowed
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./infra/observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      loki:
+        condition: service_started
+    networks: [stack]
+    logging: *logging
+
 volumes:
   postgres-data:
   certs:
+  loki-data:
 
 networks:
   stack:
