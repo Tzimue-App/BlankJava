@@ -2,7 +2,7 @@ name: "Push suite"
 
 # Fast feedback on what a push changed (docs/technical_analysis.md §7.2).
 # Only the modules touched by THIS push (diff with the previous pushed commit) are checked:
-# format + lint, unit and slice tests, coverage thresholds. No integration tests, no Selenium:
+# format + lint, unit and slice tests, coverage thresholds, and the release script tests. No integration tests, no Selenium:
 # those belong to the pull request suite.
 # dev, test and main only receive merges; their checks run in the PR suite and release workflows.
 
@@ -31,6 +31,7 @@ jobs:
       backend: ${{ steps.modules.outputs.backend }}
       frontend: ${{ steps.modules.outputs.frontend }}
       e2e: ${{ steps.modules.outputs.e2e }}
+      tooling: ${{ steps.modules.outputs.tooling }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -53,6 +54,24 @@ jobs:
           echo "backend=$(has '${{ steps.filter.outputs.backend }}' backend/gradlew)" >> "$GITHUB_OUTPUT"
           echo "frontend=$(has '${{ steps.filter.outputs.frontend }}' frontend/package.json)" >> "$GITHUB_OUTPUT"
           echo "e2e=$(has '${{ steps.filter.outputs.e2e }}' e2e/gradlew)" >> "$GITHUB_OUTPUT"
+          echo "tooling=$(has '${{ steps.filter.outputs.tooling }}' bump_version.py)" >> "$GITHUB_OUTPUT"
+
+  tooling:
+    # Release script (bump_version.py) and its tests: not a component, so no other job covers it
+    needs: changes
+    if: needs.changes.outputs.tooling == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Release script tests
+        run: python -m unittest discover -s tests -t . -v
 
   api:
     needs: changes
@@ -62,8 +81,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Lint the OpenAPI contract
-        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi.yaml
+      # Project rules live in api/.spectral.yaml; Spectral only auto-loads a ruleset from the
+      # working directory, so it is passed explicitly. Warnings fail the job.
+      - name: Lint the OpenAPI contract (Spectral 6.17.0)
+        run: npx --yes @stoplight/spectral-cli@6.17.0 lint api/openapi.yaml --ruleset api/.spectral.yaml --fail-severity=warn
 
   backend:
     needs: changes

@@ -91,7 +91,8 @@ jobs:
         if: steps.check.outputs.present == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.module }}
+          # Root context: images are generated from api/openapi.yaml
+          context: .
           file: ./${{ matrix.module }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}

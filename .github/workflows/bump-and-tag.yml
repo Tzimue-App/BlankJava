@@ -23,6 +23,7 @@ jobs:
   bump:
     if: "!contains(github.event.head_commit.message, '[bump_version]')"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
