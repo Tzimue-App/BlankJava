@@ -1,0 +1,7 @@
+dist
+coverage
+node_modules
+.angular
+projects/web/src/app/core/api/generated
+**/*.generated.ts
+package-lock.json

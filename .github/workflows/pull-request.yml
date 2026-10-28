@@ -203,10 +203,13 @@ jobs:
           npm run test:ci
           npm run build
 
+      # Vitest writes lcov paths relative to frontend/; diff-cover matches them against git paths
+      # (frontend/...), so they are prefixed first, or every line would count as "no coverage data".
       - name: Diff coverage on the lines changed by this PR
         run: |
           pip install --quiet diff-cover
-          diff-cover frontend/coverage/lcov.info \
+          sed -E 's#^SF:(projects/)#SF:frontend/\1#' frontend/coverage/web/lcov.info > lcov-frontend.info
+          diff-cover lcov-frontend.info \
             --compare-branch "$BASE_REF" \
             --fail-under "$DIFF_COVERAGE_MIN" \
             --markdown-report diff-coverage-frontend.md
