@@ -26,10 +26,11 @@ repositories {
 // The API contract is the source of truth (docs/technical_analysis.md §4.1)
 val contract: File = file("../api/openapi.yaml")
 
-// info.version of the contract, exposed as "api" in /actuator/info
+// info.version of the contract, exposed as "api" in /actuator/info.
+// Line endings are normalised first: a Windows checkout has CRLF (#16).
 val apiVersion: String =
     Regex("""(?m)^info:[ \t]*\n(?:[ \t][^\n]*\n)*?[ \t]+version:[ \t]*["']?([^"'\s]+)""")
-        .find(contract.readText())
+        .find(contract.readText().replace("\r\n", "\n"))
         ?.groupValues
         ?.get(1)
         ?: "unknown"
