@@ -17,6 +17,29 @@ spring:
     problemdetails:
       enabled: true
 
+server:
+  # Behind Nginx: the client IP and scheme come from X-Forwarded-* (docs/technical_analysis.md §3.5)
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Trust X-Forwarded-* only from Nginx's fixed address in compose.yaml (not the whole
+      # subnet: the client as seen by Nginx, e.g. the Docker gateway, would then be dropped as
+      # one more proxy). Nginx overwrites X-Forwarded-For with the real client address.
+      internal-proxies: '172\.30\.0\.10'
+    accesslog:
+      # Switched on by compose.yaml (SERVER_TOMCAT_ACCESSLOG_ENABLED); written to stdout
+      enabled: false
+      directory: /dev
+      prefix: stdout
+      suffix: ""
+      file-date-format: ""
+      buffered: false
+      # The access log is written after RemoteIpValve has restored the proxy's address: read
+      # the client IP it recorded in the request attributes instead
+      request-attributes-enabled: true
+      # %a = client IP after X-Forwarded-For processing; %D = duration in microseconds (Tomcat 10+)
+      pattern: '%a "%r" %s %b %Dus request_id=%{X-Request-Id}i'
+
 blankjava:
   # Project release of the image (Docker build argument), shown by /actuator/info
   release: ${APP_RELEASE:unknown}

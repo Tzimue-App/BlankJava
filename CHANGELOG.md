@@ -33,6 +33,7 @@ Bump-e2e: 0
 - Release script tests run by a `tooling` job in the push and pull request suites, required through `pr-gate` (#9)
 - 10-minute timeout on the release and start-milestone workflows (#9)
 - Issue status tracked on the Project board only; `status:` labels removed from the issue templates and guidelines (#10)
+- Local stack `compose.yaml`: PostgreSQL 18, backend, Nginx with TLS (self-signed certificate generated once), HTTP to HTTPS redirect, `/api` and `/actuator/info` reverse proxy, security headers, real client IP behind the proxy, rotated container logs; guide in `infra/README.md` (#5)
 - Frontend quality gates: angular-eslint with enforced folder boundaries, Prettier, Vitest coverage 80 % statements / 70 % branches over all source files; non-root Nginx image built from the repository root; frontend diff coverage now matched against repository paths (#4)
 - Backend quality gates: Spotless (palantir-java-format), Error Prone, JaCoCo 80 % lines / 70 % branches, Testcontainers integration tests in `check`; layered non-root Docker image built from the repository root (#3)
 - Contract checks in CI with pinned tools: Spectral 6.17.0 with the project ruleset (push and PR suites), openapi-generator 7.26.0 and ng-openapi-gen 1.1.0 must accept the contract (PR suite) (#2)
