@@ -17,7 +17,7 @@ Then open **https://localhost**. `--wait` returns once every service is healthy:
 | Service | Role | Reachable from your machine |
 |---|---|---|
 | `frontend` | Nginx: TLS, Angular app, reverse proxy for `/api` and `/actuator/info` | `https://localhost` (443), `http://localhost` (80, redirects to HTTPS) |
-| `backend` | Spring Boot API, access log on stdout | Only through Nginx |
+| `backend` | Spring Boot API, JSON logs (one access line per request) | Only through Nginx |
 | `postgres` | PostgreSQL 18, volume `postgres-data` | `127.0.0.1:5432` (this machine only) |
 | `cert-init` | Creates a self-signed certificate once, in the volume `certs`, then exits | — |
 
@@ -37,7 +37,7 @@ docker compose down --volumes
 
 The last one also deletes the database and the certificate.
 
-Logs of every container are rotated (`json-file`, 10 MB × 5).
+Logs of every container are rotated (`json-file`, 10 MB × 5). Log format, trace ids and searching them in Grafana (`--profile observability`): [observability/README.md](observability/README.md).
 
 ### Trust the development certificate (once)
 
@@ -90,7 +90,7 @@ On Windows PowerShell, set the password first with `$env:DB_PASSWORD = "change-m
 
 ## How the stack is wired
 
-- **Single entry point.** Only Nginx is published. It overwrites `X-Forwarded-For` with the client address it sees, and adds `X-Forwarded-Proto` and `X-Request-Id`. The backend trusts these headers **only from Nginx's fixed address** (`172.30.0.10`, see `compose.yaml` and `server.tomcat.remoteip.internal-proxies` in the backend configuration). A forged `X-Forwarded-For` is therefore ignored, and the backend access log shows the real client IP.
+- **Single entry point.** Only Nginx is published. It overwrites `X-Forwarded-For` with the client address it sees, and adds `X-Forwarded-Proto` and `X-Request-Id`. The backend trusts these headers **only from Nginx's fixed address** (`172.30.0.10`, see `compose.yaml` and `server.tomcat.remoteip.internal-proxies` in the backend configuration). A forged `X-Forwarded-For` is therefore ignored, and the backend access log (`client.ip`) shows the real client IP.
 - **HTTPS everywhere.** Nginx serves TLS in every environment, so the session cookie (`Secure`, milestone M1) behaves the same locally, in the Selenium runs and in production.
 - **Non-root containers.** Nginx runs as `nginx` and binds 80/443 thanks to `net.ipv4.ip_unprivileged_port_start=0` in its own network namespace; the backend runs as `app`.
 - **Security headers** (`nginx/security-headers.conf`): `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy: frame-ancestors 'none'`. A strict CSP and HSTS come with M2.

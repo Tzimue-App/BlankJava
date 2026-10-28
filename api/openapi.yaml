@@ -15,7 +15,41 @@ servers:
 tags:
   - name: system
     description: Technical endpoints shared by every feature
-paths: {}
+paths:
+  /client-logs:
+    post:
+      operationId: sendClientLogs
+      tags: [system]
+      summary: Report frontend log events
+      description: |
+        Batched log events from the browser (uncaught errors, failed requests), written to the
+        backend logs with `event.dataset=frontend`. E-mail addresses are masked. At most 20
+        entries and 8 KB per request; no authentication required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 20
+              items:
+                $ref: "#/components/schemas/ClientLogEntry"
+            example:
+              - level: error
+                message: "TypeError: Cannot read properties of undefined (reading 'name')"
+                traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+                url: /me
+                timestamp: "2026-10-28T10:15:30Z"
+      responses:
+        "202":
+          description: Accepted and written to the logs.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        default:
+          $ref: "#/components/responses/InternalError"
 components:
   securitySchemes:
     bearerAuth:
@@ -24,6 +58,33 @@ components:
       bearerFormat: JWT
       description: "Short-lived access token (RS256), sent as `Authorization: Bearer <token>`."
   schemas:
+    ClientLogEntry:
+      type: object
+      description: One log event reported by the frontend.
+      required:
+        - level
+        - message
+      additionalProperties: false
+      properties:
+        level:
+          type: string
+          enum: [error, warn, info]
+        message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        traceId:
+          type: string
+          pattern: "^[0-9a-f]{32}$"
+          description: Trace id of the page's last API request, to correlate with backend logs.
+        url:
+          type: string
+          maxLength: 500
+          description: Path of the page, without query string.
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event happened in the browser.
     Problem:
       type: object
       description: |
@@ -88,6 +149,12 @@ components:
             $ref: "#/components/schemas/Problem"
     Conflict:
       description: The request conflicts with the current state of the resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    PayloadTooLarge:
+      description: The request body is larger than the operation allows.
       content:
         application/problem+json:
           schema:

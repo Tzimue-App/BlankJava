@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest
-@Import({TraceIds.class, ProblemDetailsHandlerTest.FailingController.class})
+@Import({ApiPathConfig.class, TraceIds.class, ProblemDetailsHandlerTest.FailingController.class})
 class ProblemDetailsHandlerTest {
 
     private static final String TRACE_ID = "[0-9a-f]{32}";
@@ -36,7 +36,7 @@ class ProblemDetailsHandlerTest {
 
     @Test
     void unexpectedErrorIsA500ProblemThatHidesItsCause() throws Exception {
-        mvc.perform(get("/test/failure"))
+        mvc.perform(get("/api/test/failure"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(500))
@@ -48,7 +48,7 @@ class ProblemDetailsHandlerTest {
     @RestController
     static class FailingController {
 
-        @GetMapping("/test/failure")
+        @GetMapping("/test/failure") // served as /api/test/failure (ApiPathConfig)
         String fail() {
             throw new IllegalStateException("secret internal detail");
         }

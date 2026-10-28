@@ -1,0 +1,66 @@
+// Grafana Alloy: reads the logs of this Compose project's containers and sends them to Loki
+// (observability profile, docs/technical_analysis.md §6.5).
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Keep only the containers of this project; label each stream with its Compose service name
+discovery.relabel "blankjava" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "blankjava"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.blankjava.output
+  relabel_rules = discovery.relabel.blankjava.rules
+  forward_to    = [loki.process.ecs.receiver]
+}
+
+// Backend lines are ECS JSON with nested objects ("log":{"level":..}); Nginx lines use flat dotted
+// keys ("log.level"). Each expression accepts both. Lines that are not JSON (PostgreSQL) pass through.
+loki.process "ecs" {
+  stage.json {
+    expressions = {
+      level      = "log.level || \"log.level\"",
+      dataset    = "event.dataset || \"event.dataset\"",
+      trace_id   = "\"trace.id\"",
+      request_id = "request.id || \"request.id\"",
+    }
+  }
+
+  // Few distinct values: labels
+  stage.labels {
+    values = {
+      level   = "",
+      dataset = "",
+    }
+  }
+
+  // One value per request: structured metadata (searchable without exploding the index)
+  stage.structured_metadata {
+    values = {
+      trace_id   = "",
+      request_id = "",
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
