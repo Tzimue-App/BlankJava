@@ -116,6 +116,7 @@ jobs:
           name: Release script tests
           path: build/test-results/junit.xml
           reporter: java-junit
+          use-actions-summary: false
 
       - name: Upload release script report
         id: upload
@@ -193,6 +194,7 @@ jobs:
           name: Backend tests
           path: backend/build/test-results/test/*.xml
           reporter: java-junit
+          use-actions-summary: false
 
       - name: Backend integration tests report
         if: always()
@@ -201,6 +203,7 @@ jobs:
           name: Backend integration tests
           path: backend/build/test-results/integrationTest/*.xml
           reporter: java-junit
+          use-actions-summary: false
 
       # One combined unit + slice + integration report (issue #19); allure-commandline has no 3.x
       # release yet, same pin as e2e (#7)
@@ -270,6 +273,7 @@ jobs:
           name: Frontend tests
           path: frontend/test-results/junit.xml
           reporter: java-junit
+          use-actions-summary: false
 
       # Vitest writes lcov paths relative to frontend/; diff-cover matches them against git paths
       # (frontend/...), so they are prefixed first, or every line would count as "no coverage data".
