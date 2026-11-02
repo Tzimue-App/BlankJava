@@ -3,7 +3,7 @@
 #   docker compose up --build --wait      -> https://localhost
 #
 # Profiles: observability (Loki, Alloy, Grafana: infra/observability/README.md);
-# reserved: e2e and e2e-runner (Selenium, #7).
+# e2e / e2e-runner (Selenium suite: e2e/README.md).
 
 name: blankjava
 
@@ -118,6 +118,39 @@ services:
       stack:
         # Fixed address: the backend trusts X-Forwarded-* from this proxy only
         ipv4_address: 172.30.0.10
+    logging: *logging
+
+  # ---- e2e profiles: see e2e/README.md -----------------------------------------------------------
+  selenium:
+    profiles: [e2e]
+    image: selenium/standalone-chrome:155.0.8059.79-chromedriver-155.0.8059.79-grid-4.51.0-20261010
+    shm_size: 2g
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:4444/wd/hub/status"]
+      interval: 5s
+      timeout: 3s
+      start_period: 20s
+      retries: 10
+    networks: [stack]
+    logging: *logging
+
+  e2e:
+    profiles: [e2e-runner]
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    image: blankjava-e2e:local
+    environment:
+      SELENIUM_URL: http://selenium:4444
+      E2E_BASE_URL: https://frontend
+    volumes:
+      - ./e2e/build:/src/e2e/build
+    depends_on:
+      selenium:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    networks: [stack]
     logging: *logging
 
   # ---- observability profile: docker compose --profile observability up -d (infra/observability) ----

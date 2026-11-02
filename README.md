@@ -15,6 +15,7 @@ Full-stack Java foundation: a Spring Boot REST API, an Angular frontend and a Se
 - One-time GitHub configuration: [docs/github_setup.md](docs/github_setup.md)
 - Run it locally (Docker Compose, HTTPS on https://localhost): [infra/README.md](infra/README.md)
 - Logs, trace ids and searching them in Grafana: [infra/observability/README.md](infra/observability/README.md)
+- Run the Selenium suite: [e2e/README.md](e2e/README.md)
 
 ## How work flows
 

@@ -40,12 +40,17 @@ jobs:
           [ -f .env.example ] && cp .env.example .env
           docker compose --profile e2e up --build --detach --wait
 
-      # The runner container reaches the frontend as https://frontend through http://selenium:4444
+      # The runner container reaches the frontend as https://frontend through http://selenium:4444.
+      # --profile e2e (not e2e-runner, the e2e service's own profile): a named "run" target ignores
+      # its own profile, but Compose still needs selenium's profile active to resolve it as a
+      # dependency (e2e/README.md).
       - name: Run the Selenium suite
         id: tests
         if: steps.check.outputs.present == 'true'
         continue-on-error: true
-        run: docker compose run --rm e2e
+        # --build: "docker compose run" only builds when no image exists yet, so a locally cached
+        # blankjava-e2e:local would otherwise run stale code (reproduced while developing #7).
+        run: docker compose --profile e2e run --build --rm e2e
 
       - name: Collect Docker Compose logs
         if: always() && steps.check.outputs.present == 'true'
