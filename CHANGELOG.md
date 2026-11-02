@@ -13,9 +13,10 @@ The project version comes from the milestone branch (vX.Y.Z-a).
 Bump-api: 2
 Bump-backend: 2
 Bump-frontend: 2
-Bump-e2e: 0
+Bump-e2e: 2
 
 ### Features
+- Selenium suite (`e2e/`): JUnit 6 + Selenium 4.51 against the running stack, Page Objects, a screenshot after every test (plus console log and page source on failure), a single-file Allure report with the project and component versions as its environment header; one smoke test (home page loads over HTTPS, footer shows the backend version) (#7)
 - Frontend skeleton: Angular 22 workspace with lazy-loaded features, Material 3 shell, not-found page, footer with release, frontend, backend and API versions, runtime `/config.json` (#4)
 - Backend skeleton: Spring Boot 4.1 on Java 25, Flyway baseline, RFC 9457 errors with `traceId`, `/actuator/health` and `/actuator/info` (backend, release and contract versions) (#3)
 - `POST /api/client-logs`: browser log events (max 20 entries, 8 KB) written to the backend logs (#6)
@@ -26,6 +27,7 @@ Bump-e2e: 0
 ### Bug Fixes
 - Release script: linear-time parsing of the OpenAPI `info.version` (code scanning alert #1, #9)
 - Backend build: contract version read correctly from a Windows (CRLF) checkout (#16)
+- Nginx re-resolves `backend` on every request instead of caching its address once at startup; recreating the backend container no longer leaves Nginx proxying to a dead IP until it is itself restarted (found while developing #7) (#7)
 
 ### Deployment & Configuration
 - Push suite, pull request suite with diff coverage, Selenium suite with Allure report for reviewers
@@ -36,6 +38,7 @@ Bump-e2e: 0
 - Issue status tracked on the Project board only; `status:` labels removed from the issue templates and guidelines (#10)
 - Structured logging: ECS JSON logs, one W3C trace id from the browser through Nginx to the backend (also in every error response), JSON access logs, masked e-mails, `SECURITY_AUDIT` logger, browser errors sent to `POST /api/client-logs`; `observability` profile with Grafana Alloy, Loki (14 days) and Grafana (#6)
 - Local stack `compose.yaml`: PostgreSQL 18, backend, Nginx with TLS (self-signed certificate generated once), HTTP to HTTPS redirect, `/api` and `/actuator/info` reverse proxy, security headers, real client IP behind the proxy, rotated container logs; guide in `infra/README.md` (#5)
+- `compose.yaml` profiles `e2e` (selenium) and `e2e-runner` (e2e): `docker compose --profile e2e up --build --wait && docker compose --profile e2e run --build --rm e2e` runs the suite against the full stack; guide in `e2e/README.md` (#7)
 - Frontend quality gates: angular-eslint with enforced folder boundaries, Prettier, Vitest coverage 80 % statements / 70 % branches over all source files; non-root Nginx image built from the repository root; frontend diff coverage now matched against repository paths (#4)
 - Backend quality gates: Spotless (palantir-java-format), Error Prone, JaCoCo 80 % lines / 70 % branches, Testcontainers integration tests in `check`; layered non-root Docker image built from the repository root (#3)
 - Contract checks in CI with pinned tools: Spectral 6.17.0 with the project ruleset (push and PR suites), openapi-generator 7.26.0 and ng-openapi-gen 1.1.0 must accept the contract (PR suite) (#2)
