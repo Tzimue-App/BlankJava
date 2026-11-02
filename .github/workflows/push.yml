@@ -80,7 +80,7 @@ jobs:
 
       - name: Release script tests report
         if: always()
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         with:
           name: Release script tests
           path: build/test-results/junit.xml
@@ -126,7 +126,7 @@ jobs:
 
       - name: Backend tests report
         if: always()
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         with:
           name: Backend tests
           path: backend/build/test-results/test/*.xml
@@ -173,7 +173,7 @@ jobs:
 
       - name: Frontend tests report
         if: always()
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         with:
           name: Frontend tests
           path: frontend/test-results/junit.xml
