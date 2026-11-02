@@ -46,3 +46,7 @@ Thumbs.db
 # Generated before build/test/serve/lint (npm run generate)
 /projects/web/src/app/core/api/generated/
 /projects/web/src/app/core/version/frontend-version.generated.ts
+
+# Test reports (npm run test:ci): Vitest html reporter and JUnit XML
+/.vitest
+/test-results

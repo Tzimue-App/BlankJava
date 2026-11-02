@@ -22,6 +22,7 @@ concurrency:
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   changes:
@@ -70,8 +71,20 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install pytest
+        run: python -m pip install pytest pytest-html
+
+      # pytest runs the existing unittest.TestCase tests unmodified (issue #19)
       - name: Release script tests
-        run: python -m unittest discover -s tests -t . -v
+        run: pytest --junitxml=build/test-results/junit.xml tests/
+
+      - name: Release script tests report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Release script tests
+          path: build/test-results/junit.xml
+          reporter: java-junit
 
   api:
     needs: changes
@@ -111,6 +124,14 @@ jobs:
           chmod +x gradlew
           ./gradlew spotlessCheck test jacocoTestCoverageVerification --no-daemon
 
+      - name: Backend tests report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Backend tests
+          path: backend/build/test-results/test/*.xml
+          reporter: java-junit
+
       - name: Upload test and coverage reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -149,6 +170,14 @@ jobs:
 
       - name: Unit tests with coverage thresholds
         run: npm run test:ci
+
+      - name: Frontend tests report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Frontend tests
+          path: frontend/test-results/junit.xml
+          reporter: java-junit
 
       - name: Upload coverage report
         if: always()

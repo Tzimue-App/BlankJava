@@ -24,6 +24,10 @@ npx --yes allure-commandline@2 generate --single-file --clean e2e/build/allure-r
 
 Stop the stack with `docker compose --profile e2e down`.
 
+Backend, frontend and release-script tests have their own reports (Allure, Vitest HTML and
+pytest HTML respectively) published the same way on every pull request — see
+`docs/github_setup.md` §11.
+
 ### Why two `--profile e2e` flags, and why `--build` on `run`
 
 - `selenium` only exists under the `e2e` profile; `e2e` (the runner) only exists under

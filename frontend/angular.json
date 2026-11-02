@@ -81,7 +81,17 @@
               "statements": 80,
               "branches": 70
             },
-            "coverageInclude": ["**/app/**/*.ts"]
+            "coverageInclude": ["**/app/**/*.ts"],
+            "reporters": [
+              "default",
+              "html",
+              [
+                "junit",
+                {
+                  "outputFile": "test-results/junit.xml"
+                }
+              ]
+            ]
           }
         },
         "lint": {

@@ -28,6 +28,8 @@ concurrency:
 
 permissions:
   contents: read
+  checks: write
+  pull-requests: write
 
 env:
   BASE_REF: origin/${{ github.base_ref }}
@@ -89,6 +91,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.tooling == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      report-url: ${{ steps.upload.outputs.artifact-url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -98,8 +102,31 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install pytest
+        run: python -m pip install pytest pytest-html
+
+      # pytest runs the existing unittest.TestCase tests unmodified (issue #19)
       - name: Release script tests
-        run: python -m unittest discover -s tests -t . -v
+        run: pytest --junitxml=build/test-results/junit.xml --html=build/report.html --self-contained-html tests/
+
+      - name: Release script tests report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Release script tests
+          path: build/test-results/junit.xml
+          reporter: java-junit
+
+      - name: Upload release script report
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tooling-report
+          path: |
+            build/report.html
+            build/test-results/junit.xml
+          if-no-files-found: ignore
 
   api:
     needs: changes
@@ -135,6 +162,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      report-url: ${{ steps.upload.outputs.artifact-url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -157,6 +186,32 @@ jobs:
           chmod +x gradlew
           ./gradlew check jacocoTestReport --no-daemon
 
+      - name: Backend tests report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Backend tests
+          path: backend/build/test-results/test/*.xml
+          reporter: java-junit
+
+      - name: Backend integration tests report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Backend integration tests
+          path: backend/build/test-results/integrationTest/*.xml
+          reporter: java-junit
+
+      # One combined unit + slice + integration report (issue #19); allure-commandline has no 3.x
+      # release yet, same pin as e2e (#7)
+      - name: Generate the Allure report (single HTML file)
+        if: always()
+        run: |
+          if [ -d backend/build/allure-results ]; then
+            npx --yes allure-commandline@2.46.1 generate --single-file --clean \
+              backend/build/allure-results -o backend/build/allure-report
+          fi
+
       - name: Diff coverage on the lines changed by this PR
         run: |
           pip install --quiet diff-cover
@@ -168,12 +223,15 @@ jobs:
           { echo "## Backend diff coverage"; cat diff-coverage-backend.md; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test and coverage reports
+        id: upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-reports
           path: |
             backend/build/reports/
+            backend/build/allure-report/
+            backend/build/test-results/
             diff-coverage-backend.md
           if-no-files-found: ignore
 
@@ -181,6 +239,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      report-url: ${{ steps.upload.outputs.artifact-url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -203,6 +263,14 @@ jobs:
           npm run test:ci
           npm run build
 
+      - name: Frontend tests report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Frontend tests
+          path: frontend/test-results/junit.xml
+          reporter: java-junit
+
       # Vitest writes lcov paths relative to frontend/; diff-cover matches them against git paths
       # (frontend/...), so they are prefixed first, or every line would count as "no coverage data".
       - name: Diff coverage on the lines changed by this PR
@@ -216,12 +284,15 @@ jobs:
           { echo "## Frontend diff coverage"; cat diff-coverage-frontend.md; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage report
+        id: upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
           path: |
             frontend/coverage/
+            frontend/.vitest/
+            frontend/test-results/
             diff-coverage-frontend.md
           if-no-files-found: ignore
 
@@ -295,6 +366,94 @@ jobs:
       contents: read
       pull-requests: write
     uses: ./.github/workflows/e2e.yml
+
+  test-report:
+    # Full reports and a sticky comment with totals (issue #19); informational only, not required
+    # by pr-gate: a report page or the comment failing to build must never block the PR.
+    needs: [backend, frontend, tooling]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Download backend report
+        if: needs.backend.result != 'skipped'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-reports
+          path: artifacts/backend
+
+      - name: Download frontend report
+        if: needs.frontend.result != 'skipped'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: artifacts/frontend
+
+      - name: Download tooling report
+        if: needs.tooling.result != 'skipped'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: tooling-report
+          path: artifacts/tooling
+
+      - name: Summarise results
+        shell: python
+        env:
+          BACKEND_URL: ${{ needs.backend.outputs.report-url }}
+          FRONTEND_URL: ${{ needs.frontend.outputs.report-url }}
+          TOOLING_URL: ${{ needs.tooling.outputs.report-url }}
+        run: |
+          import glob, os, xml.etree.ElementTree as ET
+
+          def totals_for(pattern):
+              totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+              for path in glob.glob(pattern, recursive=True):
+                  totals_root = ET.parse(path).getroot()
+                  for key in totals:
+                      totals[key] += int(totals_root.get(key, 0))
+              return totals
+
+          # (suite label, JUnit XML glob, report link env var, report description)
+          suites = [
+              ("Backend tests", "artifacts/backend/test-results/test/*.xml", "BACKEND_URL", "Allure report"),
+              ("Backend integration tests", "artifacts/backend/test-results/integrationTest/*.xml", "BACKEND_URL", "Allure report"),
+              ("Frontend tests", "artifacts/frontend/test-results/*.xml", "FRONTEND_URL", "Vitest HTML report"),
+              ("Release script tests", "artifacts/tooling/test-results/*.xml", "TOOLING_URL", "pytest HTML report"),
+          ]
+
+          lines = ["### Test reports", "", "| Suite | Total | Passed | Failed | Skipped |", "|---|---|---|---|---|"]
+          for name, pattern, _, _ in suites:
+              t = totals_for(pattern)
+              broken = t["failures"] + t["errors"]
+              passed = t["tests"] - broken - t["skipped"]
+              lines.append(f"| {name} | {t['tests']} | {passed} | {broken} | {t['skipped']} |")
+
+          lines += ["", "**Full reports:**"]
+          seen = set()
+          for name, _, url_var, description in suites:
+              url = os.environ.get(url_var)
+              if url and url_var not in seen:
+                  seen.add(url_var)
+                  lines.append(f"- [{description}]({url}) — {name.split(' tests')[0]}")
+
+          text = "\n".join(lines) + "\n"
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write(text)
+          with open("test-report-summary.md", "w", encoding="utf-8") as f:
+              f.write(text)
+
+      - name: Comment on the pull request
+        if: always()
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-reports
+          path: test-report-summary.md
 
   pr-gate:
     # The only check required by the branch rulesets

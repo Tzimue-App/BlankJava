@@ -56,6 +56,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    // Same version as e2e (#7): the single-file report generator (allure-commandline) has no 3.x
+    // release yet, so backend and e2e stay on the matching 2.x line (docs: §19, test visibility)
+    testImplementation("io.qameta.allure:allure-junit5:2.35.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -152,10 +155,17 @@ spotless {
 // need Docker) in "integrationTest", run by "check" only
 // ---------------------------------------------------------------------------
 
+// One Allure results directory for both tasks below: a single job run (test then
+// integrationTest) gives one combined unit + slice + integration result set, rendered as one
+// report (docs/technical_analysis.md §7, issue #19). allure-junit5 registers itself via its own
+// META-INF/services file; only the output directory needs pointing at.
+val allureResultsDir = layout.buildDirectory.dir("allure-results")
+
 tasks.test {
     useJUnitPlatform {
         excludeTags("integration")
     }
+    systemProperty("allure.results.directory", allureResultsDir.get().asFile.path)
 }
 
 val integrationTest by tasks.registering(Test::class) {
@@ -169,6 +179,7 @@ val integrationTest by tasks.registering(Test::class) {
     useJUnitPlatform {
         includeTags("integration")
     }
+    systemProperty("allure.results.directory", allureResultsDir.get().asFile.path)
     shouldRunAfter(tasks.test)
 }
 
