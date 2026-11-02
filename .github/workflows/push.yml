@@ -25,6 +25,22 @@ permissions:
   checks: write
 
 jobs:
+  debug-checks-permission:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Try creating a check run directly via the REST API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          code=$(curl -s -o resp.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/check-runs" \
+            -d "{\"name\":\"debug-check\",\"head_sha\":\"$SHA\",\"status\":\"completed\",\"conclusion\":\"success\"}")
+          echo "HTTP status: $code"
+          cat resp.json
+
   changes:
     runs-on: ubuntu-latest
     outputs:
