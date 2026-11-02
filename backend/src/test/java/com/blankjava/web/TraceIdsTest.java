@@ -19,8 +19,7 @@ class TraceIdsTest {
     void usesTheTraceIdOfTheLoggingContext() {
         MDC.put(TraceIds.MDC_KEY, "4bf92f3577b34da6a3ce929d0e0e4736");
 
-        // TEMP (#19 CI verification, reverted before merge): wrong expected value on purpose
-        assertThat(traceIds.current()).isEqualTo("0000000000000000000000000000000");
+        assertThat(traceIds.current()).isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
     }
 
     @Test
