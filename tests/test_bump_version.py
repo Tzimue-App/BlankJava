@@ -122,7 +122,8 @@ class ProjectVersionTest(unittest.TestCase):
                     bv.parse_project_version(version)
 
     def test_bumps(self):
-        self.assertEqual(bv.bump_base_version("0.1.7", 1), "1.0.0")
+        # TEMP (#19 CI verification, reverted before merge): wrong expected value on purpose
+        self.assertEqual(bv.bump_base_version("0.1.7", 1), "9.9.9")
         self.assertEqual(bv.bump_base_version("0.1.7", 2), "0.2.0")
         self.assertEqual(bv.bump_base_version("0.1.7", 3), "0.1.8")
         self.assertEqual(bv.bump_type_between("0.1.7", "0.2.0"), 2)

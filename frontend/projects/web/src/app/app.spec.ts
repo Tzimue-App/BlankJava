@@ -31,7 +31,8 @@ describe('App routes', () => {
     await harness.navigateByUrl('/does/not/exist');
 
     const notFound = harness.fixture.nativeElement.querySelector('[data-testid="not-found"]');
-    expect(notFound?.textContent).toContain('Page not found');
+    // TEMP (#19 CI verification, reverted before merge): wrong expected text on purpose
+    expect(notFound?.textContent).toContain('Totally wrong message');
     expect(harness.fixture.nativeElement.querySelector('[data-testid="home"]')).toBeNull();
   });
 });
