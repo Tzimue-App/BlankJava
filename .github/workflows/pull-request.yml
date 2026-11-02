@@ -423,10 +423,13 @@ jobs:
               return totals
 
           # (suite label, JUnit XML glob, report link env var, report description)
+          # Globs are relative to the artifact's own root, which upload-artifact preserves
+          # relative to the repository root when a job uploads paths from more than one directory
+          # (e.g. "backend/build/..." and a root-level "diff-coverage-backend.md" together).
           suites = [
-              ("Backend tests", "artifacts/backend/test-results/test/*.xml", "BACKEND_URL", "Allure report"),
-              ("Backend integration tests", "artifacts/backend/test-results/integrationTest/*.xml", "BACKEND_URL", "Allure report"),
-              ("Frontend tests", "artifacts/frontend/test-results/*.xml", "FRONTEND_URL", "Vitest HTML report"),
+              ("Backend tests", "artifacts/backend/backend/build/test-results/test/*.xml", "BACKEND_URL", "Allure report"),
+              ("Backend integration tests", "artifacts/backend/backend/build/test-results/integrationTest/*.xml", "BACKEND_URL", "Allure report"),
+              ("Frontend tests", "artifacts/frontend/frontend/test-results/*.xml", "FRONTEND_URL", "Vitest HTML report"),
               ("Release script tests", "artifacts/tooling/test-results/*.xml", "TOOLING_URL", "pytest HTML report"),
           ]
 
