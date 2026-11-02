@@ -8,6 +8,10 @@ springdoc:
     url: /openapi.yaml
 
 logging:
+  # Human-readable lines locally instead of JSON
+  structured:
+    format:
+      console: ""
   level:
     com.blankjava: debug
     org.hibernate.SQL: debug
