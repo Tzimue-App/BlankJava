@@ -16,6 +16,7 @@ Bump-frontend: 2
 Bump-e2e: 2
 
 ### Features
+- Test reports on every pull request: backend Allure single-file report (unit, slice and integration tests combined), frontend Vitest HTML report, release-script pytest HTML report; a check per suite (`dorny/test-reporter`) annotates failures inline, and a sticky comment links all three reports with pass/fail/skipped totals (#19)
 - Selenium suite (`e2e/`): JUnit 6 + Selenium 4.51 against the running stack, Page Objects, a screenshot after every test (plus console log and page source on failure), a single-file Allure report with the project and component versions as its environment header; one smoke test (home page loads over HTTPS, footer shows the backend version) (#7)
 - Frontend skeleton: Angular 22 workspace with lazy-loaded features, Material 3 shell, not-found page, footer with release, frontend, backend and API versions, runtime `/config.json` (#4)
 - Backend skeleton: Spring Boot 4.1 on Java 25, Flyway baseline, RFC 9457 errors with `traceId`, `/actuator/health` and `/actuator/info` (backend, release and contract versions) (#3)
@@ -31,6 +32,7 @@ Bump-e2e: 2
 
 ### Deployment & Configuration
 - Push suite, pull request suite with diff coverage, Selenium suite with Allure report for reviewers
+- Push and pull request suites: `dorny/test-reporter` inline check per suite (backend, backend integration, frontend, release script); pull request suite also publishes the full Allure/Vitest/pytest-html reports and a sticky comment with totals (#19)
 - Milestone branch flow (vX.Y.Z-a), releases vX.Y.Z-a (dev) → vX.Y.Z-b (test) → vX.Y.Z (main) with back-merges
 - Issue templates, pull request template, issue guidelines, GitHub setup checklist, roadmap
 - Release script tests run by a `tooling` job in the push and pull request suites, required through `pr-gate` (#9)
