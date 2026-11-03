@@ -1,0 +1,18 @@
+# Images are built from the repository root (they need api/openapi.yaml):
+#   docker build -f backend/Dockerfile .
+# Keep the build context small and free of local state and secrets.
+.git
+.github
+.idea
+.vscode
+docs
+tests
+**/build
+**/.gradle
+**/node_modules
+**/dist
+**/coverage
+**/*.log
+.env
+.env.*
+**/.angular

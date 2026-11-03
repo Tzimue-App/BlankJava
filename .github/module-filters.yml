@@ -10,3 +10,7 @@ frontend:
   - "api/**"
 e2e:
   - "e2e/**"
+# Release tooling: not a versioned component, tested by its own job
+tooling:
+  - "bump_version.py"
+  - "tests/**"

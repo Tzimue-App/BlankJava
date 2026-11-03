@@ -34,24 +34,34 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Created here, before Compose first mounts it, so it is owned by the runner user.
+      # Otherwise Docker creates it as root on first bind-mount (the e2e service runs as
+      # root in its container), and the later steps below cannot write into it.
+      - name: Create the build output directory
+        if: steps.check.outputs.present == 'true'
+        run: mkdir -p e2e/build
+
       - name: Start PostgreSQL, backend, frontend and Selenium
         if: steps.check.outputs.present == 'true'
         run: |
           [ -f .env.example ] && cp .env.example .env
           docker compose --profile e2e up --build --detach --wait
 
-      # The runner container reaches the frontend as https://frontend through http://selenium:4444
+      # The runner container reaches the frontend as https://frontend through http://selenium:4444.
+      # --profile e2e (not e2e-runner, the e2e service's own profile): a named "run" target ignores
+      # its own profile, but Compose still needs selenium's profile active to resolve it as a
+      # dependency (e2e/README.md).
       - name: Run the Selenium suite
         id: tests
         if: steps.check.outputs.present == 'true'
         continue-on-error: true
-        run: docker compose run --rm e2e
+        # --build: "docker compose run" only builds when no image exists yet, so a locally cached
+        # blankjava-e2e:local would otherwise run stale code (reproduced while developing #7).
+        run: docker compose --profile e2e run --build --rm e2e
 
       - name: Collect Docker Compose logs
         if: always() && steps.check.outputs.present == 'true'
-        run: |
-          mkdir -p e2e/build
-          docker compose --profile e2e logs --no-color --timestamps > e2e/build/compose-logs.txt
+        run: docker compose --profile e2e logs --no-color --timestamps > e2e/build/compose-logs.txt
 
       - name: Generate the Allure report (single HTML file)
         if: always() && steps.check.outputs.present == 'true'
