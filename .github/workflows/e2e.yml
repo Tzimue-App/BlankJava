@@ -34,6 +34,13 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Created here, before Compose first mounts it, so it is owned by the runner user.
+      # Otherwise Docker creates it as root on first bind-mount (the e2e service runs as
+      # root in its container), and the later steps below cannot write into it.
+      - name: Create the build output directory
+        if: steps.check.outputs.present == 'true'
+        run: mkdir -p e2e/build
+
       - name: Start PostgreSQL, backend, frontend and Selenium
         if: steps.check.outputs.present == 'true'
         run: |
@@ -54,9 +61,7 @@ jobs:
 
       - name: Collect Docker Compose logs
         if: always() && steps.check.outputs.present == 'true'
-        run: |
-          mkdir -p e2e/build
-          docker compose --profile e2e logs --no-color --timestamps > e2e/build/compose-logs.txt
+        run: docker compose --profile e2e logs --no-color --timestamps > e2e/build/compose-logs.txt
 
       - name: Generate the Allure report (single HTML file)
         if: always() && steps.check.outputs.present == 'true'
