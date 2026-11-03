@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-Project foundation: technical analysis, delivery process, GitHub workflows and issue templates.
+_Description: Write the summary here..._
 
 <!--
 One line per component: 0 = unchanged, 1 = major, 2 = minor, 3 = patch.
@@ -10,10 +10,33 @@ A component whose directory changed must be bumped. Over a milestone, keep the m
 significant bump (a PR may raise a value, never lower it).
 The project version comes from the milestone branch (vX.Y.Z-a).
 -->
-Bump-api: 2
-Bump-backend: 2
-Bump-frontend: 2
-Bump-e2e: 2
+Bump-api: 0
+Bump-backend: 0
+Bump-frontend: 0
+Bump-e2e: 0
+
+### Features
+
+### Patches
+
+### Bug Fixes
+
+### Deployment & Configuration
+
+### ChangeLog
+
+---
+
+## [v0.1.0-a] - 2026-11-03
+
+# blankjava - Alpha v0.1.0-a
+
+> [!WARNING]
+> **Status: Alpha.** Development build for internal integration testing.
+
+**Components:** api `0.1.0` (updated) · backend `0.1.0` (updated) · frontend `0.1.0` (updated) · e2e `0.1.0` (updated)
+
+Project foundation: technical analysis, delivery process, GitHub workflows and issue templates.
 
 ### Features
 - Test reports on every pull request: backend Allure single-file report (unit, slice and integration tests combined), frontend Vitest HTML report, release-script pytest HTML report; a check per suite (`dorny/test-reporter`) annotates failures inline, and a sticky comment links all three reports with pass/fail/skipped totals (#19)
@@ -22,8 +45,6 @@ Bump-e2e: 2
 - Backend skeleton: Spring Boot 4.1 on Java 25, Flyway baseline, RFC 9457 errors with `traceId`, `/actuator/health` and `/actuator/info` (backend, release and contract versions) (#3)
 - `POST /api/client-logs`: browser log events (max 20 entries, 8 KB) written to the backend logs (#6)
 - API contract skeleton `api/openapi.yaml` (OpenAPI 3.1): shared `Problem` schema (RFC 9457 with `traceId`), standard error responses, `bearerAuth` scheme (#2)
-
-### Patches
 
 ### Bug Fixes
 - Release script: linear-time parsing of the OpenAPI `info.version` (code scanning alert #1, #9)
