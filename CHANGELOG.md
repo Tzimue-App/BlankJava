@@ -29,6 +29,7 @@ Bump-e2e: 2
 - Release script: linear-time parsing of the OpenAPI `info.version` (code scanning alert #1, #9)
 - Backend build: contract version read correctly from a Windows (CRLF) checkout (#16)
 - Nginx re-resolves `backend` on every request instead of caching its address once at startup; recreating the backend container no longer leaves Nginx proxying to a dead IP until it is itself restarted (found while developing #7) (#7)
+- Selenium suite: `e2e/build` is created by the runner before Compose first bind-mounts it, so it is runner-owned instead of root-owned (the `e2e` container runs as root); collecting the Compose logs and generating the Allure report no longer fail with *Permission denied* after the tests themselves pass (found while verifying #8) (#8)
 
 ### Deployment & Configuration
 - Push suite, pull request suite with diff coverage, Selenium suite with Allure report for reviewers
