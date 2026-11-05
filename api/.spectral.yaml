@@ -50,6 +50,15 @@ rules:
       field: application/problem+json
       function: truthy
 
-  # Shared error responses (Unauthorized, NotFound, Conflict) are prepared for the accounts API
-  # and not referenced yet. Re-enable once M1 (accounts contract) uses them.
-  oas3-unused-component: off
+  # A response must never expose a secret: no property named like a password, a hash or a
+  # refresh token in any schema reachable from a 2xx response ($refs are resolved first).
+  # The refresh token only travels in the HttpOnly cookie (docs/technical_analysis.md §4.2, §5.2).
+  blankjava-no-secret-in-responses:
+    description: Success responses never contain a password, a password hash or a refresh token.
+    message: "Property '{{property}}' must not appear in a success response."
+    severity: error
+    given: "$.paths[*][*].responses[?(@property >= '200' && @property < '300')]..properties[*]~"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/^(password|passwordHash|hash|refreshToken)$/i"

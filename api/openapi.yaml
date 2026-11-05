@@ -15,7 +15,194 @@ servers:
 tags:
   - name: system
     description: Technical endpoints shared by every feature
+  - name: auth
+    description: |
+      Account creation and session lifecycle. A session is a short-lived access token (in the
+      response body, kept in memory by the client) plus a refresh token in an `HttpOnly` cookie
+      scoped to `/api/auth`, rotated on every use.
+  - name: users
+    description: The authenticated user's own account
 paths:
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Create an account and open a session
+      description: |
+        Creates the account and logs the new user in. The e-mail is trimmed and lower-cased; it
+        must not be registered yet. The display name is trimmed, then must be 2 to 50 Unicode
+        code points. The password must be 15 to 64 Unicode code points after NFKC normalisation
+        and must not appear in the compromised-password blocklist. These rules are enforced by
+        the backend (`code` of each entry of `errors`); the schema only bounds the raw values.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            example:
+              email: jane@example.com
+              displayName: Jane
+              password: correct horse battery staple
+      responses:
+        "201":
+          description: Account created, session opened.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SetRefreshCookie"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControlNoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+              example:
+                accessToken: eyJraWQiOiJrMSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiI3YjJmIn0.c2lnbmF0dXJl
+                expiresIn: 600
+                user:
+                  id: 7b2f4c1e-9a8d-4b6e-8f3a-2d1c0b9e8a7f
+                  email: jane@example.com
+                  displayName: Jane
+                  createdAt: "2026-11-05T10:15:30Z"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "409":
+          $ref: "#/components/responses/EmailTaken"
+        default:
+          $ref: "#/components/responses/InternalError"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Open a session with e-mail and password
+      description: |
+        Checks the credentials and opens a new session. Any credential mismatch (unknown e-mail,
+        wrong password, password that could never be valid) gives the same `401` body, so the
+        response never tells which part was wrong nor whether the e-mail is registered. `400` is
+        only returned for a structurally invalid body (missing field, wrong type).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: jane@example.com
+              password: correct horse battery staple
+      responses:
+        "200":
+          description: Credentials valid, session opened.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SetRefreshCookie"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControlNoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+              example:
+                accessToken: eyJraWQiOiJrMSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiI3YjJmIn0.c2lnbmF0dXJl
+                expiresIn: 600
+                user:
+                  id: 7b2f4c1e-9a8d-4b6e-8f3a-2d1c0b9e8a7f
+                  email: jane@example.com
+                  displayName: Jane
+                  createdAt: "2026-11-05T10:15:30Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidCredentials"
+        default:
+          $ref: "#/components/responses/InternalError"
+  /auth/refresh:
+    post:
+      operationId: refresh
+      tags: [auth]
+      summary: Renew the access token with the refresh cookie
+      description: |
+        Exchanges the refresh cookie for a new access token and a new refresh cookie (rotation:
+        the presented token is revoked). Called by the client on page load to restore the
+        session and when an access token expires. The `Origin` header is required and must be
+        an allowed origin of the application.
+      security:
+        - refreshCookie: []
+      responses:
+        "200":
+          description: Session renewed, refresh cookie rotated.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SetRefreshCookie"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControlNoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+              example:
+                accessToken: eyJraWQiOiJrMSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiI3YjJmIn0.c2lnbmF0dXJl
+                expiresIn: 600
+                user:
+                  id: 7b2f4c1e-9a8d-4b6e-8f3a-2d1c0b9e8a7f
+                  email: jane@example.com
+                  displayName: Jane
+                  createdAt: "2026-11-05T10:15:30Z"
+        "401":
+          $ref: "#/components/responses/RefreshRejected"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/InternalError"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the session
+      description: |
+        Revokes the presented refresh token and clears the cookie. Idempotent: also answers `204`
+        when the cookie is missing, unknown or already revoked. An access token already issued
+        stays valid until it expires (at most 10 minutes); the client drops it from memory. The
+        `Origin` header is required and must be an allowed origin of the application.
+      security:
+        - refreshCookie: []
+      responses:
+        "204":
+          description: Session ended, cookie cleared.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/ClearRefreshCookie"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/InternalError"
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Read the authenticated user's profile
+      description: |
+        Returns the account of the access token's owner (its `sub` claim). There is no user id
+        in the request, so no other account can be read through this operation.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: 7b2f4c1e-9a8d-4b6e-8f3a-2d1c0b9e8a7f
+                email: jane@example.com
+                displayName: Jane
+                createdAt: "2026-11-05T10:15:30Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/InternalError"
   /client-logs:
     post:
       operationId: sendClientLogs
@@ -25,6 +212,7 @@ paths:
         Batched log events from the browser (uncaught errors, failed requests), written to the
         backend logs with `event.dataset=frontend`. E-mail addresses are masked. At most 20
         entries and 8 KB per request; no authentication required.
+      security: []
       requestBody:
         required: true
         content:
@@ -56,7 +244,15 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: "Short-lived access token (RS256), sent as `Authorization: Bearer <token>`."
+      description: "Short-lived access token (RS256, 10 minutes), sent as `Authorization: Bearer <token>`."
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: |
+        Refresh token set by `register`, `login` and `refresh`: `HttpOnly; Secure; SameSite=Strict;
+        Path=/api/auth`, valid 7 days, rotated on every use. The browser sends it by itself; the
+        client code never reads it. Operations using it also require an allowed `Origin` header.
   schemas:
     ClientLogEntry:
       type: object
@@ -115,6 +311,11 @@ components:
         traceId:
           type: string
           description: Trace id of the request, to find it in the logs (W3C Trace Context).
+        code:
+          type: string
+          description: |
+            Machine-readable error code for errors the client handles specifically (e.g.
+            `email_taken`). Stable across versions; absent for generic errors.
       required:
         - type
         - title
@@ -128,40 +329,291 @@ components:
         detail: No resource at /api/unknown
         instance: /api/unknown
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    ValidationProblem:
+      description: |
+        `400` Problem Details listing every invalid field of the request, so a form can show each
+        error under its field.
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          required:
+            - errors
+          properties:
+            errors:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/FieldError"
+    FieldError:
+      type: object
+      description: One invalid field of a request.
+      required:
+        - field
+        - code
+      properties:
+        field:
+          type: string
+          description: Name of the request property, as in the request schema.
+        code:
+          type: string
+          enum: [required, invalid_format, too_short, too_long, compromised_password]
+          description: |
+            - `required`: missing or blank
+            - `invalid_format`: not a valid value for the field (e.g. not an e-mail address)
+            - `too_short` / `too_long`: outside the field's length rule
+            - `compromised_password`: the password appears in known data breaches
+        message:
+          type: string
+          description: Human-readable explanation, in English, for logs and developers; clients
+            show their own translated text based on `code`.
+    RegisterRequest:
+      type: object
+      description: |
+        New account. Bounds below are the hard limits of the raw values; the real rules (counted
+        in Unicode code points, after trimming or NFKC normalisation) are checked by the backend
+        and described on the `register` operation.
+      required:
+        - email
+        - displayName
+        - password
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: Trimmed and lower-cased by the backend before use.
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 2 to 50 code points after trimming (checked by the backend).
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 256
+          description: |
+            15 to 64 code points after NFKC normalisation, not in the compromised-password
+            blocklist (checked by the backend). Never stored, logged or returned.
+    LoginRequest:
+      type: object
+      description: |
+        Credentials. Deliberately no policy constraint: a password that could never be valid is
+        answered with the generic `401`, not a `400` revealing the rules.
+      required:
+        - email
+        - password
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          minLength: 1
+          maxLength: 254
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 256
+    SessionResponse:
+      type: object
+      description: |
+        An opened or renewed session. The access token is kept in memory by the client, never in
+        Web Storage; the refresh token travels only in the `refresh_token` cookie.
+      required:
+        - accessToken
+        - expiresIn
+        - user
+      properties:
+        accessToken:
+          type: string
+          description: "JWT (RS256), sent as `Authorization: Bearer <token>`."
+        expiresIn:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Lifetime of the access token, in seconds (600).
+        user:
+          $ref: "#/components/schemas/User"
+    User:
+      type: object
+      description: A user account as seen by its owner. Never contains the password or its hash.
+      required:
+        - id
+        - email
+        - displayName
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          description: When the account was registered.
+  headers:
+    SetRefreshCookie:
+      description: |
+        Sets the refresh token: random opaque value, valid 7 days, rotated on every refresh.
+        Attributes: `HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age=604800`.
+      schema:
+        type: string
+      example: refresh_token=3q2-7wE4Y_k9Vh0Xb1sNqR5tUjZcLmPaGdFoIy8e6Hw; Max-Age=604800; Path=/api/auth; Secure; HttpOnly; SameSite=Strict
+    ClearRefreshCookie:
+      description: Clears the refresh cookie (same name, path and attributes, `Max-Age=0`).
+      schema:
+        type: string
+      example: refresh_token=; Max-Age=0; Path=/api/auth; Secure; HttpOnly; SameSite=Strict
+    CacheControlNoStore:
+      description: Responses carrying a token must not be stored by any cache.
+      schema:
+        type: string
+        enum: [no-store]
+    WwwAuthenticateBearer:
+      description: Authentication scheme expected by the operation (RFC 6750).
+      schema:
+        type: string
+      example: Bearer
   responses:
     BadRequest:
-      description: The request is invalid.
+      description: The request is invalid (malformed JSON, wrong type, missing field).
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Bad Request
+            status: 400
+            detail: The request does not match the API contract.
+            instance: /api/auth/login
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    ValidationFailed:
+      description: One or more fields break the validation rules.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ValidationProblem"
+          example:
+            type: about:blank
+            title: Bad Request
+            status: 400
+            detail: Some fields are invalid.
+            instance: /api/auth/register
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+            errors:
+              - field: password
+                code: compromised_password
+                message: The password appears in known data breaches.
+              - field: displayName
+                code: too_short
+                message: The display name must have 2 to 50 characters.
     Unauthorized:
-      description: Authentication is missing, expired or invalid.
+      description: The access token is missing, expired or invalid.
+      headers:
+        WWW-Authenticate:
+          $ref: "#/components/headers/WwwAuthenticateBearer"
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-    NotFound:
-      description: The resource does not exist.
+          example:
+            type: about:blank
+            title: Unauthorized
+            status: 401
+            detail: Authentication is required.
+            instance: /api/users/me
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    InvalidCredentials:
+      description: |
+        The credentials do not match an account. Same body whether the e-mail is registered or
+        not.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-    Conflict:
-      description: The request conflicts with the current state of the resource.
+          example:
+            type: about:blank
+            title: Unauthorized
+            status: 401
+            detail: Invalid e-mail or password.
+            instance: /api/auth/login
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    RefreshRejected:
+      description: |
+        The refresh cookie is missing, unknown, expired or revoked. The cookie is cleared; the
+        client treats the user as anonymous.
+      headers:
+        Set-Cookie:
+          $ref: "#/components/headers/ClearRefreshCookie"
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Unauthorized
+            status: 401
+            detail: The session has expired.
+            instance: /api/auth/refresh
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    Forbidden:
+      description: |
+        The request is refused. On `refresh` and `logout`: the `Origin` header is missing or is
+        not an allowed origin of the application.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Forbidden
+            status: 403
+            detail: Origin not allowed.
+            instance: /api/auth/refresh
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+    EmailTaken:
+      description: An account already uses this e-mail address.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Conflict
+            status: 409
+            detail: This e-mail address is already registered.
+            instance: /api/auth/register
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+            code: email_taken
     PayloadTooLarge:
       description: The request body is larger than the operation allows.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Payload Too Large
+            status: 413
+            detail: The request body exceeds 8 KB.
+            instance: /api/client-logs
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
     InternalError:
       description: Unexpected server error.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Internal Server Error
+            status: 500
+            detail: Unexpected error. Quote the trace id when reporting it.
+            instance: /api/users/me
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
