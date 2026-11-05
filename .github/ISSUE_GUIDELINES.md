@@ -31,18 +31,28 @@ Security vulnerabilities are **never** filed as issues: use *Security → Report
 - Never paste secrets, tokens, passwords, real e-mail addresses or other personal data. Use test accounts.
 - Link code as `path/File.java:line` and the spec as `docs/technical_analysis.md#section`.
 - Acceptance criteria are observable and pass/fail (**Given / when / then**), including the failure paths.
-- An issue is **Ready** when its root cause (bugs) or proposed solution (features, improvements) and its acceptance criteria are filled in, and its dependencies are merged or in progress.
+- An issue is **ready** to be picked up when its root cause (bugs) or proposed solution (features, improvements) and its acceptance criteria are filled in, and every issue it depends on (*Related → Depends on*) is merged into the milestone branch. Readiness is not a label: see *Status* below.
 
 ## Labels
 
 | Label | Meaning |
 |---|---|
 | `type: bug` / `type: feature` / `type: improvement` | Set by the template |
-| `status: needs-triage` | Set by the template; removed at triage |
-| `status: ready` | Can be picked up |
-| `status: blocked` | Waiting on another issue or decision |
 | `priority: high` / `priority: medium` / `priority: low` | Set at triage |
 | `run-e2e` | On a PR into a milestone branch: also run the Selenium suite (it always runs on PRs into `dev`, `test`, `main`) |
+
+Labels classify an issue; they never carry its progress.
+
+## Status
+
+Progress is tracked **only** in the *Status* field of the GitHub Project board:
+
+| Status | Meaning |
+|---|---|
+| **Todo** | Filed, not started. Picked up in roadmap order once it is ready (see *Content*) |
+| **In Progress** | The issue branch exists and work is ongoing |
+| **In Review** | Its PR is open, **or** merged into the milestone branch. The issue stays open until the milestone reaches `dev`: GitHub only applies `Closes #<issue>` on the default branch |
+| **Done** | Closed: the milestone has been merged into `dev` |
 
 ## Branches
 

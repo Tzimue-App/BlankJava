@@ -58,8 +58,11 @@ VERSION_BLOCK_PATTERN = re.compile(
 PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(a|b))?$")
 MILESTONE_BRANCH_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)-a$")
 COMPONENT_BUMP_PATTERN = re.compile(r"^\s*bump-([\w\-]+)\s*:\s*\[?(\d)\]?", re.IGNORECASE | re.MULTILINE)
+# Each line skipped inside "info:" starts with exactly one blank, so it can only be matched one
+# way. "[ \t]+.*" would let both parts match the leading blanks and backtrack exponentially when
+# no "version:" follows (CodeQL py/redos).
 OPENAPI_VERSION_PATTERN = re.compile(
-    r"(^info:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+version:[ \t]*[\"']?)([^\"'\s]+)", re.MULTILINE
+    r"(^info:[ \t]*\n(?:[ \t][^\n]*\n)*?[ \t]+version:[ \t]*[\"']?)([^\"'\s]+)", re.MULTILINE
 )
 COMPONENTS_LINE_PREFIX = "**Components:**"
 
@@ -700,14 +703,20 @@ def release(ci, dry_run):
 
     branch = get_current_branch()
     if branch not in BRANCH_STAGE_MAP:
-        print(f"❌ Releases happen on dev, test or main. Current branch: {branch}")
-        sys.exit(1)
+        if not dry_run:
+            print(f"❌ Releases happen on dev, test or main. Current branch: {branch}")
+            sys.exit(1)
+        # On a milestone or issue branch, preview what merging it into dev would release
+        print(f"⚠️  '{branch}' is not a release branch: previewing a merge into dev.")
+        branch = "dev"
     print(f"📌 Branch: {branch}")
 
     components = get_components()
     current = get_current_version()
     base, stage = parse_project_version(current)
     print(f"📦 Current version: {current}")
+    for name, version in get_component_versions(components).items():
+        print(f"   {name}: {version}")
 
     # What was merged decides what is released; anything else is a no-op
     expected_stage = {"dev": "a", "test": "a", "main": "b"}[branch]

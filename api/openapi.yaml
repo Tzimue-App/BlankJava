@@ -1,0 +1,167 @@
+openapi: 3.1.1
+info:
+  title: BlankJava API
+  version: 0.1.0
+  description: |
+    Contract of the BlankJava REST API, source of truth for the Spring Boot backend
+    (generated interfaces) and the Angular frontend (generated client).
+    OpenAPI 3.1 on purpose: the generators cannot read 3.2 yet (see api/README.md).
+  contact:
+    name: BlankJava maintainers
+    url: https://github.com/Tzimue-App/BlankJava
+servers:
+  - url: /api
+    description: Same origin, behind the Nginx reverse proxy
+tags:
+  - name: system
+    description: Technical endpoints shared by every feature
+paths:
+  /client-logs:
+    post:
+      operationId: sendClientLogs
+      tags: [system]
+      summary: Report frontend log events
+      description: |
+        Batched log events from the browser (uncaught errors, failed requests), written to the
+        backend logs with `event.dataset=frontend`. E-mail addresses are masked. At most 20
+        entries and 8 KB per request; no authentication required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 20
+              items:
+                $ref: "#/components/schemas/ClientLogEntry"
+            example:
+              - level: error
+                message: "TypeError: Cannot read properties of undefined (reading 'name')"
+                traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+                url: /me
+                timestamp: "2026-10-28T10:15:30Z"
+      responses:
+        "202":
+          description: Accepted and written to the logs.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        default:
+          $ref: "#/components/responses/InternalError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Short-lived access token (RS256), sent as `Authorization: Bearer <token>`."
+  schemas:
+    ClientLogEntry:
+      type: object
+      description: One log event reported by the frontend.
+      required:
+        - level
+        - message
+      additionalProperties: false
+      properties:
+        level:
+          type: string
+          enum: [error, warn, info]
+        message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        traceId:
+          type: string
+          pattern: "^[0-9a-f]{32}$"
+          description: Trace id of the page's last API request, to correlate with backend logs.
+        url:
+          type: string
+          maxLength: 500
+          description: Path of the page, without query string.
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event happened in the browser.
+    Problem:
+      type: object
+      description: |
+        Error response, RFC 9457 Problem Details (`application/problem+json`).
+        Further members may be added by specific errors.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: about:blank
+          description: URI identifying the problem type.
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 599
+          description: HTTP status code of this occurrence.
+        detail:
+          type: string
+          description: Human-readable explanation of this occurrence.
+        instance:
+          type: string
+          format: uri-reference
+          description: URI identifying this occurrence.
+        traceId:
+          type: string
+          description: Trace id of the request, to find it in the logs (W3C Trace Context).
+      required:
+        - type
+        - title
+        - status
+        - traceId
+      additionalProperties: true
+      example:
+        type: about:blank
+        title: Not Found
+        status: 404
+        detail: No resource at /api/unknown
+        instance: /api/unknown
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+  responses:
+    BadRequest:
+      description: The request is invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Authentication is missing, expired or invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: The resource does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: The request conflicts with the current state of the resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    PayloadTooLarge:
+      description: The request body is larger than the operation allows.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
