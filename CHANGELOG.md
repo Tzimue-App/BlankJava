@@ -10,12 +10,13 @@ A component whose directory changed must be bumped. Over a milestone, keep the m
 significant bump (a PR may raise a value, never lower it).
 The project version comes from the milestone branch (vX.Y.Z-a).
 -->
-Bump-api: 0
+Bump-api: 2
 Bump-backend: 0
 Bump-frontend: 0
 Bump-e2e: 0
 
 ### Features
+- Accounts API contract: `register`, `login`, `refresh`, `logout` (`/auth/*`) and `getCurrentUser` (`GET /users/me`), with the refresh cookie as a `refreshCookie` security scheme, `Set-Cookie` and `Cache-Control: no-store` headers, field-level validation errors (`ValidationProblem`, codes `required`, `invalid_format`, `too_short`, `too_long`, `compromised_password`), `409` `email_taken`, `403` on a missing or foreign `Origin`, and an example for every response (#28)
 
 ### Patches
 
