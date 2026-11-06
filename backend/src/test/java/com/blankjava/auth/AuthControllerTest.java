@@ -3,6 +3,7 @@ package com.blankjava.auth;
 import static com.blankjava.contract.ContractValidation.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -27,9 +28,11 @@ import com.blankjava.web.FieldErrors;
 import com.blankjava.web.InvalidFieldsException;
 import com.blankjava.web.ProblemDetailsHandler;
 import com.blankjava.web.TraceIds;
+import jakarta.servlet.http.Cookie;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,14 +43,20 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-/** Status codes, headers and Problem bodies of {@code /api/auth/*}, the service mocked (#29). */
-@WebMvcTest(AuthController.class)
+/** Status codes, headers and Problem bodies of {@code /api/auth/*}, the service mocked (#29, #30). */
+@WebMvcTest(
+        controllers = AuthController.class,
+        properties = "blankjava.security.allowed-origins=https://localhost,https://frontend")
 @ApiSecurity
-@Import({ApiPathConfig.class, ProblemDetailsHandler.class, TraceIds.class, SecurityAuditLog.class})
+@Import({ApiPathConfig.class, ProblemDetailsHandler.class, TraceIds.class, SecurityAuditLog.class, OriginCheck.class})
 class AuthControllerTest {
 
     private static final String TRACE_ID = "[0-9a-f]{32}";
     private static final UUID USER_ID = UUID.fromString("7b2f4c1e-9a8d-4b6e-8f3a-2d1c0b9e8a7f");
+    private static final String SET_COOKIE =
+            "refresh_token=refresh-value; Path=/api/auth; Max-Age=604800; Expires=[^;]+; Secure; HttpOnly; SameSite=Strict";
+    private static final String CLEAR_COOKIE =
+            "refresh_token=; Path=/api/auth; Max-Age=0; Expires=[^;]+; Secure; HttpOnly; SameSite=Strict";
     private static final String VALID = """
             {"email":"Jane@Example.com ","displayName":"Jane","password":"tangerine-river-boat"}""";
 
@@ -174,16 +183,145 @@ class AuthControllerTest {
     }
 
     @Test
-    void loginRefreshAndLogoutAreNotImplementedYet() throws Exception {
-        for (String path : List.of("/api/auth/login", "/api/auth/refresh", "/api/auth/logout")) {
-            mvc.perform(post(path)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"jane@example.com\",\"password\":\"x\"}"))
-                    .andExpect(status().isNotImplemented())
+    void aLoginOpensASessionLikeARegistration() throws Exception {
+        Session session = session();
+        when(sessions.login("Jane@Example.com", "tangerine-river-boat")).thenReturn(session);
+
+        try (CapturedLogs logs = new CapturedLogs(SecurityAuditLog.LOGGER_NAME)) {
+            login("{\"email\":\"Jane@Example.com\",\"password\":\"tangerine-river-boat\"}")
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(header().string("Set-Cookie", matchesPattern(SET_COOKIE)))
+                    .andExpect(jsonPath("$.accessToken").value("access-value"))
+                    .andExpect(jsonPath("$.user.id").value(USER_ID.toString()))
+                    .andExpect(matchesContract());
+
+            assertThat(logs.events())
+                    .singleElement()
+                    .satisfies(event -> assertThat(CapturedLogs.keyValues(event))
+                            .containsEntry("event.action", "auth.login.succeeded")
+                            .containsEntry("user.id", USER_ID.toString())
+                            .containsEntry("client.ip", "127.0.0.1"));
+        }
+    }
+
+    @Test
+    void aFailedLoginIsTheGeneric401AndAuditedWithTheMaskedEmail() throws Exception {
+        when(sessions.login(anyString(), anyString())).thenThrow(new InvalidCredentialsException());
+
+        try (CapturedLogs logs = new CapturedLogs(SecurityAuditLog.LOGGER_NAME)) {
+            login("{\"email\":\"jane.doe@example.com\",\"password\":\"abc\"}")
+                    .andExpect(status().isUnauthorized())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.detail").value("Invalid e-mail or password."))
                     .andExpect(jsonPath("$.traceId").value(matchesPattern(TRACE_ID)))
+                    .andExpect(header().doesNotExist("Set-Cookie"))
+                    .andExpect(matchesContract());
+
+            assertThat(logs.events()).singleElement().satisfies(event -> {
+                assertThat(CapturedLogs.keyValues(event))
+                        .containsEntry("event.action", "auth.login.failed")
+                        .containsEntry("event.outcome", "failure")
+                        .containsEntry("user.email", "j***@example.com")
+                        .doesNotContainKey("user.id");
+                assertThat(event.getFormattedMessage() + CapturedLogs.keyValues(event))
+                        .doesNotContain("jane.doe");
+            });
+        }
+    }
+
+    @Test
+    void aStructurallyInvalidLoginIsA400() throws Exception {
+        login("{\"email\":\"jane@example.com\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(matchesContract());
+        verifyNoInteractions(sessions);
+    }
+
+    @Test
+    void refreshRotatesTheCookieForAnAllowedOrigin() throws Exception {
+        Session session = session();
+        when(sessions.refresh("old-value")).thenReturn(session);
+
+        for (String origin : List.of("https://localhost", "https://frontend", "HTTPS://LOCALHOST/")) {
+            mvc.perform(post("/api/auth/refresh")
+                            .header("Origin", origin)
+                            .cookie(new Cookie("refresh_token", "old-value")))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(header().string("Set-Cookie", matchesPattern(SET_COOKIE)))
                     .andExpect(matchesContract());
         }
+    }
+
+    @Test
+    void aRejectedRefreshIsA401ThatClearsTheCookie() throws Exception {
+        when(sessions.refresh(any())).thenThrow(new RefreshRejectedException());
+
+        mvc.perform(post("/api/auth/refresh").header("Origin", "https://localhost"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Set-Cookie", matchesPattern(CLEAR_COOKIE)))
+                .andExpect(jsonPath("$.detail").value("The session has expired."))
+                .andExpect(jsonPath("$.traceId").value(matchesPattern(TRACE_ID)))
+                .andExpect(matchesContract());
+    }
+
+    @Test
+    void refreshAndLogoutRefuseAForeignOrMissingOrigin() throws Exception {
+        for (String path : List.of("/api/auth/refresh", "/api/auth/logout")) {
+            for (String origin : new String[] {"https://evil.example", "null", "http://localhost", null}) {
+                var request = post(path).cookie(new Cookie("refresh_token", "old-value"));
+                if (origin != null) {
+                    request.header("Origin", origin);
+                }
+                mvc.perform(request)
+                        .andExpect(status().isForbidden())
+                        .andExpect(jsonPath("$.detail").value("Origin not allowed."))
+                        .andExpect(jsonPath("$.traceId").value(matchesPattern(TRACE_ID)))
+                        .andExpect(header().doesNotExist("Set-Cookie"))
+                        .andExpect(matchesContract());
+            }
+        }
+        verifyNoInteractions(sessions);
+    }
+
+    @Test
+    void logoutRevokesClearsTheCookieAndIsAudited() throws Exception {
+        when(sessions.logout("old-value")).thenReturn(Optional.of(USER_ID));
+
+        try (CapturedLogs logs = new CapturedLogs(SecurityAuditLog.LOGGER_NAME)) {
+            mvc.perform(post("/api/auth/logout")
+                            .header("Origin", "https://localhost")
+                            .cookie(new Cookie("refresh_token", "old-value")))
+                    .andExpect(status().isNoContent())
+                    .andExpect(header().string("Set-Cookie", matchesPattern(CLEAR_COOKIE)))
+                    .andExpect(matchesContract());
+
+            assertThat(logs.events())
+                    .singleElement()
+                    .satisfies(event -> assertThat(CapturedLogs.keyValues(event))
+                            .containsEntry("event.action", "auth.logout")
+                            .containsEntry("user.id", USER_ID.toString()));
+        }
+    }
+
+    @Test
+    void logoutWithoutAnActiveSessionIsStillA204AndNotAudited() throws Exception {
+        when(sessions.logout(null)).thenReturn(Optional.empty());
+
+        try (CapturedLogs logs = new CapturedLogs(SecurityAuditLog.LOGGER_NAME)) {
+            mvc.perform(post("/api/auth/logout").header("Origin", "https://frontend"))
+                    .andExpect(status().isNoContent())
+                    .andExpect(header().string("Set-Cookie", matchesPattern(CLEAR_COOKIE)))
+                    .andExpect(matchesContract());
+
+            assertThat(logs.events()).isEmpty();
+        }
+    }
+
+    private ResultActions login(String body) throws Exception {
+        return mvc.perform(
+                post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
     private ResultActions register(String body) throws Exception {

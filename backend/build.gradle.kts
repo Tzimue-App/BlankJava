@@ -49,6 +49,9 @@ dependencies {
     // Argon2id password hashing (docs/technical_analysis.md §5.1): Spring Security's
     // Argon2PasswordEncoder uses Bouncy Castle's implementation
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
+    // Scheduled jobs run once across backend instances (refresh-token purge, docs: §4.3)
+    implementation("net.javacrumbs.shedlock:shedlock-spring:7.10.1")
+    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.10.1")
     // Tracing: W3C traceparent in and out, trace ids in the logs; no exporter (nothing is sent)
     implementation("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
     implementation("io.micrometer:micrometer-tracing-bridge-otel")

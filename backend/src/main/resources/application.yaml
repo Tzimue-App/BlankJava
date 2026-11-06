@@ -63,6 +63,9 @@ blankjava:
     refresh-token:
       # Lifetime of a refresh token and of its cookie (Max-Age)
       lifetime: 7d
+      # The nightly purge deletes tokens expired or revoked for longer than this
+      purge-after: 7d
+      purge-cron: "0 30 3 * * *"
     password:
       # Argon2id cost (OWASP minimum). Raise it so one hash takes 100-300 ms on the production
       # host: backend/README.md, section "Passwords"

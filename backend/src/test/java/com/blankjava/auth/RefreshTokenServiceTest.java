@@ -2,7 +2,9 @@ package com.blankjava.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +19,7 @@ import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +31,9 @@ class RefreshTokenServiceTest {
 
     private final RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
     private final RefreshTokenService service = new RefreshTokenService(
-            repository, new RefreshTokenProperties(Duration.ofDays(7)), Clock.fixed(NOW, ZoneOffset.UTC));
+            repository,
+            new RefreshTokenProperties(Duration.ofDays(7), Duration.ofDays(7), "0 30 3 * * *"),
+            Clock.fixed(NOW, ZoneOffset.UTC));
 
     {
         when(repository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -87,5 +92,72 @@ class RefreshTokenServiceTest {
         ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
         verify(repository, times(times)).save(captor.capture());
         return captor.getAllValues();
+    }
+
+    @Test
+    void rotationRevokesTheTokenPointsToItsReplacementAndKeepsTheFamily() {
+        RefreshToken current = stored(NOW.plus(Duration.ofDays(1)));
+        when(repository.findByTokenHashForUpdate(RefreshTokenService.hash("old")))
+                .thenReturn(Optional.of(current));
+
+        RefreshTokenService.Rotation rotation = service.rotate("old").orElseThrow();
+
+        assertThat(rotation.userId()).isEqualTo(USER);
+        RefreshToken next = saved().getFirst();
+        assertThat(next.getFamilyId()).isEqualTo(current.getFamilyId());
+        assertThat(next.getTokenHash())
+                .isEqualTo(RefreshTokenService.hash(rotation.token().value()));
+        assertThat(next.getExpiresAt()).isEqualTo(NOW.plus(Duration.ofDays(7)));
+        assertThat(current.getRevokedAt()).isEqualTo(NOW);
+        assertThat(current.getReplacedBy()).isEqualTo(next.getId());
+    }
+
+    @Test
+    void anUnknownExpiredOrRevokedTokenIsNotRotated() {
+        RefreshToken expired = stored(NOW);
+        RefreshToken revoked = stored(NOW.plus(Duration.ofDays(1)));
+        revoked.revoke(NOW.minusSeconds(1), null);
+        when(repository.findByTokenHashForUpdate(anyString())).thenReturn(Optional.empty());
+        when(repository.findByTokenHashForUpdate(RefreshTokenService.hash("expired")))
+                .thenReturn(Optional.of(expired));
+        when(repository.findByTokenHashForUpdate(RefreshTokenService.hash("revoked")))
+                .thenReturn(Optional.of(revoked));
+
+        assertThat(service.rotate("unknown")).isEmpty();
+        assertThat(service.rotate("expired")).isEmpty();
+        assertThat(service.rotate("revoked")).isEmpty();
+        verify(repository, never()).save(any(RefreshToken.class));
+        assertThat(expired.getRevokedAt()).isNull();
+    }
+
+    @Test
+    void revokingReturnsTheOwnerOnceThenNothing() {
+        RefreshToken current = stored(NOW.plus(Duration.ofDays(1)));
+        when(repository.findByTokenHashForUpdate(RefreshTokenService.hash("value")))
+                .thenReturn(Optional.of(current));
+
+        assertThat(service.revoke("value")).contains(USER);
+        assertThat(current.getRevokedAt()).isEqualTo(NOW);
+        assertThat(current.getReplacedBy()).isNull();
+        assertThat(service.revoke("value")).isEmpty();
+    }
+
+    @Test
+    void thePurgeCutoffIsTheRetentionBeforeNow() {
+        when(repository.deleteObsolete(any())).thenReturn(3);
+
+        assertThat(service.purge()).isEqualTo(3);
+        verify(repository).deleteObsolete(NOW.minus(Duration.ofDays(7)));
+    }
+
+    @Test
+    void theClearingCookieHasTheSameAttributesAndMaxAgeZero() {
+        assertThat(RefreshTokenService.clearCookie().toString())
+                .startsWith("refresh_token=; Path=/api/auth; Max-Age=0; Expires=")
+                .endsWith("; Secure; HttpOnly; SameSite=Strict");
+    }
+
+    private static RefreshToken stored(java.time.Instant expiresAt) {
+        return new RefreshToken(USER, UUID.randomUUID(), "hash", NOW.minus(Duration.ofDays(1)), expiresAt);
     }
 }

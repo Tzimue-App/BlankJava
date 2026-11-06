@@ -39,4 +39,16 @@ class LogMaskingTest {
 
         assertThat(LogMasking.maskEmails(input)).endsWith(".");
     }
+
+    @Test
+    void masksOneEmailValueAndHidesAnythingElse() {
+        assertThat(LogMasking.maskEmail(" Jane.Doe@Example.com ")).isEqualTo("J***@Example.com");
+        // Not an address: could be a password typed in the e-mail field
+        assertThat(LogMasking.maskEmail("hunter2-hunter2")).isEqualTo("***");
+        assertThat(LogMasking.maskEmail("jane@")).isEqualTo("***");
+        assertThat(LogMasking.maskEmail("@example.com")).isEqualTo("***");
+        // The first code point is kept whole, even outside the BMP
+        assertThat(LogMasking.maskEmail("😀x@example.com")).isEqualTo("😀***@example.com");
+        assertThat(LogMasking.maskEmail(null)).isNull();
+    }
 }

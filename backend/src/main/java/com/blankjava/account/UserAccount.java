@@ -72,6 +72,12 @@ public class UserAccount {
         return updatedAt;
     }
 
+    /** A new hash of the same password (stronger cost, §5.1). */
+    void changePasswordHash(String newHash, Instant now) {
+        this.passwordHash = newHash;
+        this.updatedAt = now;
+    }
+
     @Override
     public String toString() {
         // Neither the e-mail nor the hash: an entity printed in a log must not leak them

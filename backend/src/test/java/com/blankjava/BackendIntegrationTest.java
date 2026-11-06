@@ -38,9 +38,10 @@ class BackendIntegrationTest {
     @Test
     void flywayAppliedEveryMigration() {
         Integer applied = jdbc.queryForObject(
-                "select count(*) from flyway_schema_history where version in ('1', '2') and success", Integer.class);
+                "select count(*) from flyway_schema_history where version in ('1', '2', '3') and success",
+                Integer.class);
 
-        assertThat(applied).isEqualTo(2);
+        assertThat(applied).isEqualTo(3);
     }
 
     @Test
