@@ -21,4 +21,21 @@ public final class LogMasking {
     public static @Nullable String maskEmails(@Nullable String text) {
         return text == null ? null : EMAIL.matcher(text).replaceAll("$1***@$2");
     }
+
+    /**
+     * Masks one value expected to be an e-mail address, keeping its first character and its domain
+     * ({@code j***@example.com}). Anything else, which may be a password typed in the wrong field,
+     * is fully masked ({@code ***}).
+     */
+    public static @Nullable String maskEmail(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.strip();
+        int at = trimmed.lastIndexOf('@');
+        if (at <= 0 || at == trimmed.length() - 1) {
+            return "***";
+        }
+        return trimmed.substring(0, trimmed.offsetByCodePoints(0, 1)) + "***" + trimmed.substring(at);
+    }
 }

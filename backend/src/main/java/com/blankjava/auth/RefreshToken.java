@@ -90,6 +90,17 @@ public class RefreshToken {
         return replacedBy;
     }
 
+    /** Not revoked and not expired at {@code now}. */
+    boolean isActive(Instant now) {
+        return revokedAt == null && expiresAt.isAfter(now);
+    }
+
+    /** Revoked, on logout ({@code replacement} null) or rotation (the token that replaces it). */
+    void revoke(Instant now, @Nullable UUID replacement) {
+        this.revokedAt = now;
+        this.replacedBy = replacement;
+    }
+
     @Override
     public String toString() {
         return "RefreshToken[id=" + id + ", userId=" + userId + ", familyId=" + familyId + "]";

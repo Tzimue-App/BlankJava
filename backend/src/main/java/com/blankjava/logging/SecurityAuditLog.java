@@ -4,13 +4,15 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.stereotype.Component;
 
 /**
  * Security events (registration, login, logout…) as structured log events of the {@code
  * SECURITY_AUDIT} logger (docs/technical_analysis.md §6.2), so they can be searched and counted:
  * {@code event.action}, {@code event.outcome}, {@code user.id}, {@code client.ip}. Never pass an
- * e-mail or a credential: users are identified by their id.
+ * e-mail or a credential: users are identified by their id (a failed login, which has no id, gets
+ * the masked e-mail through {@link #recordForEmail}).
  */
 @Component
 public class SecurityAuditLog {
@@ -39,12 +41,26 @@ public class SecurityAuditLog {
      * @param clientIp the client address as seen by the backend behind the proxy
      */
     public void record(String action, Outcome outcome, @Nullable String userId, @Nullable String clientIp) {
-        log.atLevel(outcome == Outcome.FAILURE ? Level.WARN : Level.INFO)
+        event(action, outcome, userId, clientIp).log("Security event {} ({})", action, outcome.value);
+    }
+
+    /**
+     * Records a security event about an e-mail that matches no user id (failed login): the address
+     * is written masked by {@link LogMasking#maskEmail(String)} as {@code user.email}, never in full.
+     */
+    public void recordForEmail(String action, Outcome outcome, @Nullable String email, @Nullable String clientIp) {
+        event(action, outcome, null, clientIp)
+                .addKeyValue("user.email", LogMasking.maskEmail(email))
+                .log("Security event {} ({})", action, outcome.value);
+    }
+
+    private static LoggingEventBuilder event(
+            String action, Outcome outcome, @Nullable String userId, @Nullable String clientIp) {
+        return log.atLevel(outcome == Outcome.FAILURE ? Level.WARN : Level.INFO)
                 .addKeyValue("event.category", "authentication")
                 .addKeyValue("event.action", action)
                 .addKeyValue("event.outcome", outcome.value)
                 .addKeyValue("user.id", userId)
-                .addKeyValue("client.ip", clientIp)
-                .log("Security event {} ({})", action, outcome.value);
+                .addKeyValue("client.ip", clientIp);
     }
 }
