@@ -18,8 +18,12 @@ Bump-e2e: 0
 ### Features
 - Accounts API contract: `register`, `login`, `refresh`, `logout` (`/auth/*`) and `getCurrentUser` (`GET /users/me`), with the refresh cookie as a `refreshCookie` security scheme, `Set-Cookie` and `Cache-Control: no-store` headers, field-level validation errors (`ValidationProblem`, codes `required`, `invalid_format`, `too_short`, `too_long`, `compromised_password`), `409` `email_taken`, `403` on a missing or foreign `Origin`, and an example for every response (#28)
 - Backend security foundation: every route needs a valid access token except an explicit list of public routes (auth, `client-logs`, health and info, Swagger UI in `dev`), a test fails if a route becomes public by accident; RS256 access tokens signed with a key set loaded from PEM files (RSA ≥ 3072 bits, `kid` thumbprints, previous keys accepted during a rotation), checked for `iss`, `aud`, `sub` and expiry; `401`/`403` as Problem Details with `traceId` and `WWW-Authenticate`; public routes ignore an expired `Authorization` header (#37)
+- Registration `POST /api/auth/register`: e-mail trimmed and lower-cased, display name 2–50 code points, password 15–64 code points after NFKC and not in an offline list of 5,328 breached passwords (SecLists, MIT), Argon2id hash (`{argon2}`, 19 MiB, 2 iterations); `201` with the session (access token, `refresh_token` cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, 7 days, stored as a SHA-256 hash) and `Cache-Control: no-store`; every `400` is a `ValidationProblem` with a `code` per field; `409` `email_taken`, also when two registrations race; `user.registered` audit event. `login`, `refresh` and `logout` answer `501` until #30 (#29)
 
 ### Patches
+- Contract: `RegisterRequest.email` loses `format: email`, which made the generated `@Email` reject an address with surrounding spaces before the backend trims it (#29)
+- Backend `400` validation errors carry the contract's `code` per field (`required`, `invalid_format`, `too_short`, `too_long`) instead of a free-text message only (#29)
+- Contract response validator in the backend tests: no longer adds `additionalProperties: false` to schemas that do not declare it, which made it reject every `ValidationProblem` (`allOf`) (#29)
 
 ### Bug Fixes
 - Backend `400` and `500` Problem Details now always include `type` (`about:blank`), which the contract requires; Spring left it out (found by the contract response validator of #37) (#37)
@@ -28,6 +32,8 @@ Bump-e2e: 0
 - JWT signing key: `infra/secrets/jwt-private.pem` mounted read-only into the backend by `compose.yaml` (git-ignored, excluded from Docker build contexts); CI takes it from the `JWT_PRIVATE_KEY` repository secret, or generates a throw-away key on fork and Dependabot PRs; the backend refuses to start without a valid key and names the file. Key creation, CI secret and rotation procedure in `infra/README.md` (#37)
 - `BLANKJAVA_ALLOWED_ORIGINS` (default `https://localhost,https://frontend`): origins accepted on the session cookie endpoints (#37)
 - Pull request suite: the `docker-build` job fails if a backend or frontend image contains a private key (#37)
+- Database migration `V2__accounts.sql`: tables `app_user` and `refresh_token` with their indexes (#29)
+- Password hashing cost `blankjava.security.password.argon2.*` (defaults 19 MiB, 2 iterations, parallelism 1; how to tune it in `backend/README.md`) and refresh-token lifetime `blankjava.security.refresh-token.lifetime` (7 days); new dependency Bouncy Castle `bcprov-jdk18on` 1.86 (#29)
 - Backend tests: responses checked against `api/openapi.yaml` with `ContractValidation.matchesContract()` (swagger-request-validator 2.44.9) (#37)
 
 ### ChangeLog

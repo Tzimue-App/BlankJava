@@ -34,8 +34,14 @@ public final class ContractValidation {
                     .withBasePathOverride("/api")
                     .withLevelResolver(LevelResolver.create()
                             .withLevel("validation.request", ValidationReport.Level.IGNORE)
-                            // False positive of the validator on OpenAPI 3.1: it rejects members
-                            // that `additionalProperties: true` allows (e.g. `errors` on Problem).
+                            // By default the validator adds `additionalProperties: false` to every
+                            // schema that does not declare it. That breaks `allOf` (each branch of
+                            // ValidationProblem would reject the members of the other) and is not
+                            // what the contract says. Off: only an explicit `additionalProperties`
+                            // of the contract is checked.
+                            .withLevel("validation.schema.additionalProperties", ValidationReport.Level.IGNORE)
+                            // It also rejects members that the explicit `additionalProperties: true`
+                            // of Problem allows (e.g. `errors`), a bug of its OpenAPI 3.1 support.
                             // No response schema of the contract is closed, so nothing is lost.
                             .withLevel(
                                     "validation.response.body.schema.additionalProperties",

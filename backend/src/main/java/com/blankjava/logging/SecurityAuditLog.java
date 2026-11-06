@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class SecurityAuditLog {
 
-    static final String LOGGER_NAME = "SECURITY_AUDIT";
+    public static final String LOGGER_NAME = "SECURITY_AUDIT";
 
     private static final Logger log = LoggerFactory.getLogger(LOGGER_NAME);
 

@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest
+@WebMvcTest(ProblemDetailsHandlerTest.FailingController.class)
 @ApiSecurity
 @Import({ApiPathConfig.class, TraceIds.class, ProblemDetailsHandlerTest.FailingController.class})
 class ProblemDetailsHandlerTest {

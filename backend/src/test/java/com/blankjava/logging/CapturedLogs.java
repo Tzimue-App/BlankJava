@@ -10,22 +10,22 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.event.KeyValuePair;
 
 /** Captures the events of one logger in tests, with their structured key-value pairs. */
-final class CapturedLogs implements AutoCloseable {
+public final class CapturedLogs implements AutoCloseable {
 
     private final Logger logger;
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
-    CapturedLogs(String loggerName) {
+    public CapturedLogs(String loggerName) {
         logger = (Logger) LoggerFactory.getLogger(loggerName);
         appender.start();
         logger.addAppender(appender);
     }
 
-    List<ILoggingEvent> events() {
+    public List<ILoggingEvent> events() {
         return appender.list;
     }
 
-    static Map<String, Object> keyValues(ILoggingEvent event) {
+    public static Map<String, Object> keyValues(ILoggingEvent event) {
         List<KeyValuePair> pairs = event.getKeyValuePairs() == null ? List.of() : event.getKeyValuePairs();
         return pairs.stream()
                 .filter(pair -> pair.value != null)

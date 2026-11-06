@@ -56,4 +56,31 @@ class ContractValidationTest {
 
         assertThat(report.hasErrors()).isTrue();
     }
+
+    @Test
+    void aValidationProblemWithItsErrorsPasses() {
+        assertThat(register400(",\"errors\":[{\"field\":\"password\",\"code\":\"too_short\"}]")
+                        .getMessages())
+                .isEmpty();
+    }
+
+    @Test
+    void aValidationProblemWithoutErrorsOrWithAnUnknownCodeIsRejected() {
+        assertThat(register400("").hasErrors()).isTrue();
+        assertThat(register400(",\"errors\":[{\"field\":\"password\",\"code\":\"too_weak\"}]")
+                        .hasErrors())
+                .isTrue();
+    }
+
+    private static ValidationReport register400(String errors) {
+        return ContractValidation.validator()
+                .validateResponse(
+                        "/api/auth/register",
+                        Request.Method.POST,
+                        SimpleResponse.Builder.status(400)
+                                .withContentType(PROBLEM)
+                                .withBody("{\"type\":\"about:blank\",\"title\":\"Bad Request\",\"status\":400,"
+                                        + "\"traceId\":\"4bf92f3577b34da6a3ce929d0e0e4736\"" + errors + "}")
+                                .build());
+    }
 }

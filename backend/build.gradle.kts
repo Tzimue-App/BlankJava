@@ -46,6 +46,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.flywaydb:flyway-database-postgresql")
+    // Argon2id password hashing (docs/technical_analysis.md §5.1): Spring Security's
+    // Argon2PasswordEncoder uses Bouncy Castle's implementation
+    implementation("org.bouncycastle:bcprov-jdk18on:1.86")
     // Tracing: W3C traceparent in and out, trace ids in the logs; no exporter (nothing is sent)
     implementation("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
