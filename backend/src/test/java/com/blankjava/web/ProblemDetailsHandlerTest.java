@@ -6,6 +6,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.blankjava.security.AccessTokenService;
+import com.blankjava.security.ApiSecurity;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @WebMvcTest
+@ApiSecurity
 @Import({ApiPathConfig.class, TraceIds.class, ProblemDetailsHandlerTest.FailingController.class})
 class ProblemDetailsHandlerTest {
 
@@ -24,9 +28,17 @@ class ProblemDetailsHandlerTest {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private AccessTokenService tokens;
+
+    /** These routes are protected: the handler is reached with a valid token. */
+    private String bearer() {
+        return "Bearer " + tokens.issue(UUID.randomUUID()).value();
+    }
+
     @Test
     void unknownPathIsA404ProblemWithTraceId() throws Exception {
-        mvc.perform(get("/unknown"))
+        mvc.perform(get("/unknown").header("Authorization", bearer()))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(404))
@@ -36,7 +48,7 @@ class ProblemDetailsHandlerTest {
 
     @Test
     void unexpectedErrorIsA500ProblemThatHidesItsCause() throws Exception {
-        mvc.perform(get("/api/test/failure"))
+        mvc.perform(get("/api/test/failure").header("Authorization", bearer()))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(500))

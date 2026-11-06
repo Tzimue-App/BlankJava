@@ -11,18 +11,24 @@ significant bump (a PR may raise a value, never lower it).
 The project version comes from the milestone branch (vX.Y.Z-a).
 -->
 Bump-api: 2
-Bump-backend: 0
+Bump-backend: 2
 Bump-frontend: 0
 Bump-e2e: 0
 
 ### Features
 - Accounts API contract: `register`, `login`, `refresh`, `logout` (`/auth/*`) and `getCurrentUser` (`GET /users/me`), with the refresh cookie as a `refreshCookie` security scheme, `Set-Cookie` and `Cache-Control: no-store` headers, field-level validation errors (`ValidationProblem`, codes `required`, `invalid_format`, `too_short`, `too_long`, `compromised_password`), `409` `email_taken`, `403` on a missing or foreign `Origin`, and an example for every response (#28)
+- Backend security foundation: every route needs a valid access token except an explicit list of public routes (auth, `client-logs`, health and info, Swagger UI in `dev`), a test fails if a route becomes public by accident; RS256 access tokens signed with a key set loaded from PEM files (RSA ≥ 3072 bits, `kid` thumbprints, previous keys accepted during a rotation), checked for `iss`, `aud`, `sub` and expiry; `401`/`403` as Problem Details with `traceId` and `WWW-Authenticate`; public routes ignore an expired `Authorization` header (#37)
 
 ### Patches
 
 ### Bug Fixes
+- Backend `400` and `500` Problem Details now always include `type` (`about:blank`), which the contract requires; Spring left it out (found by the contract response validator of #37) (#37)
 
 ### Deployment & Configuration
+- JWT signing key: `infra/secrets/jwt-private.pem` mounted read-only into the backend by `compose.yaml` (git-ignored, excluded from Docker build contexts); CI takes it from the `JWT_PRIVATE_KEY` repository secret, or generates a throw-away key on fork and Dependabot PRs; the backend refuses to start without a valid key and names the file. Key creation, CI secret and rotation procedure in `infra/README.md` (#37)
+- `BLANKJAVA_ALLOWED_ORIGINS` (default `https://localhost,https://frontend`): origins accepted on the session cookie endpoints (#37)
+- Pull request suite: the `docker-build` job fails if a backend or frontend image contains a private key (#37)
+- Backend tests: responses checked against `api/openapi.yaml` with `ContractValidation.matchesContract()` (swagger-request-validator 2.44.9) (#37)
 
 ### ChangeLog
 

@@ -41,6 +41,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
+    // Access rules and RS256 access tokens (docs/technical_analysis.md §5.2): the resource server
+    // verifies Bearer tokens, Nimbus JOSE (pulled in by it) signs them
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.flywaydb:flyway-database-postgresql")
     // Tracing: W3C traceparent in and out, trace ids in the logs; no exporter (nothing is sent)
     implementation("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
@@ -53,6 +57,15 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.security:spring-security-test")
+    // Responses checked against api/openapi.yaml in the tests (#37)
+    // Its swagger-parser pulls swagger-models (javax), the same package as springdoc's
+    // swagger-models-jakarta: only one copy may be on the classpath, springdoc's newer one
+    testImplementation("com.atlassian.oai:swagger-request-validator-mockmvc:2.44.9") {
+        exclude(group = "io.swagger.core.v3", module = "swagger-models")
+        exclude(group = "io.swagger.core.v3", module = "swagger-core")
+    }
+    testImplementation("io.swagger.parser.v3:swagger-parser:2.1.27")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")

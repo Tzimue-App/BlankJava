@@ -1,5 +1,6 @@
 package com.blankjava.logging;
 
+import static com.blankjava.contract.ContractValidation.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import com.blankjava.security.ApiSecurity;
 import com.blankjava.web.ApiPathConfig;
 import com.blankjava.web.ProblemDetailsHandler;
 import com.blankjava.web.TraceIds;
@@ -21,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ClientLogsController.class)
+@ApiSecurity
 @Import({ApiPathConfig.class, ProblemDetailsHandler.class, TraceIds.class, ClientLogsBodyLimitFilter.class})
 class ClientLogsControllerTest {
 
@@ -36,7 +39,8 @@ class ClientLogsControllerTest {
             mvc.perform(post("/api/client-logs")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("[" + ENTRY + ",{\"level\":\"warn\",\"message\":\"Slow page\"}]"))
-                    .andExpect(status().isAccepted());
+                    .andExpect(status().isAccepted())
+                    .andExpect(matchesContract());
 
             assertThat(logs.events()).hasSize(2);
             ILoggingEvent error = logs.events().getFirst();
@@ -71,7 +75,8 @@ class ClientLogsControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.traceId").value(matchesPattern("[0-9a-f]{32}")));
+                .andExpect(jsonPath("$.traceId").value(matchesPattern("[0-9a-f]{32}")))
+                .andExpect(matchesContract());
     }
 
     @Test
@@ -100,6 +105,24 @@ class ClientLogsControllerTest {
                 .andExpect(status().is(413))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(413))
-                .andExpect(jsonPath("$.traceId").value(matchesPattern("[0-9a-f]{32}")));
+                .andExpect(jsonPath("$.traceId").value(matchesPattern("[0-9a-f]{32}")))
+                .andExpect(matchesContract());
+    }
+
+    @Test
+    void isPublicEvenWithAnExpiredOrInvalidAccessToken() throws Exception {
+        // The frontend sends its token on every API call; an expired one must not lose the report
+        mvc.perform(post("/api/client-logs")
+                        .header("Authorization", "Bearer expired-or-forged-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"level\":\"info\",\"message\":\"Started\"}]"))
+                .andExpect(status().isAccepted())
+                .andExpect(matchesContract());
+    }
+
+    @Test
+    void aGetIsNotPublic() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/client-logs"))
+                .andExpect(status().isUnauthorized());
     }
 }

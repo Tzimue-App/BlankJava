@@ -8,6 +8,12 @@ Two ways to run BlankJava on your machine. Both need Docker (Docker Desktop on W
 cp .env.example .env
 ```
 
+Create the JWT signing key once (see [JWT signing key](#jwt-signing-key) below):
+
+```bash
+mkdir -p infra/secrets && openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out infra/secrets/jwt-private.pem
+```
+
 ```bash
 docker compose up --build --wait
 ```
@@ -74,7 +80,7 @@ Run the database only:
 docker compose up -d --wait postgres
 ```
 
-Run the backend on `http://localhost:8080`, in the `dev` profile (readable logs, Swagger UI on the contract at `/swagger-ui.html`):
+Run the backend on `http://localhost:8080`, in the `dev` profile (readable logs, Swagger UI on the contract at `/swagger-ui.html`, a JWT key generated at startup so no key file is needed, allowed origin `http://localhost:4200`):
 
 ```bash
 cd backend && DB_PASSWORD=change-me-local-only ./gradlew bootRun --args='--spring.profiles.active=dev'
@@ -98,4 +104,61 @@ On Windows PowerShell, set the password first with `$env:DB_PASSWORD = "change-m
 - **Internal endpoints.** Only `/actuator/info` is exposed; other actuator endpoints answer 404 from outside.
 - **Request size.** Bodies over 64 kB are rejected with 413.
 
-Files: `compose.yaml` and `.env.example` at the repository root; `infra/nginx/` for the Nginx configuration mounted over the image's default one.
+Files: `compose.yaml` and `.env.example` at the repository root; `infra/nginx/` for the Nginx configuration mounted over the image's default one; `infra/secrets/` (git-ignored) for the JWT signing key.
+
+## JWT signing key
+
+The backend signs access tokens (RS256) with an RSA private key of **at least 3072 bits**, in **PKCS#8 PEM** (`-----BEGIN PRIVATE KEY-----`, what `openssl genpkey` writes). The public key is derived from it. The key is never in the repository nor in an image: it is mounted at runtime, and the backend refuses to start without it, naming the missing file.
+
+| Environment | Where the key comes from |
+|---|---|
+| Compose (local) | `infra/secrets/jwt-private.pem`, created once with the command of section 1. `compose.yaml` mounts `infra/secrets/` read-only into the backend. Both folders are git-ignored and excluded from Docker build contexts. |
+| `bootRun` (`dev` profile) | None: a key is generated at startup (`blankjava.security.jwt.ephemeral-key`); sessions end when the backend restarts. |
+| Backend tests | None: same generated key (`backend/src/test/resources/config/application.yaml`). |
+| CI (Selenium suite) | The repository secret `JWT_PRIVATE_KEY`, written to `infra/secrets/` by `e2e.yml` before the stack starts. On a PR from a fork or from Dependabot (no repository secrets), a throw-away key is generated for the run. |
+| Production | Your own key, mounted as a file; point `JWT_PRIVATE_KEY_PATH` to it. Never reuse the CI or a local key. |
+
+On Linux, the backend container runs as user `app`: make the key file readable (`chmod 644 infra/secrets/jwt-private.pem`) on a development machine. In production, mount it with an owner or mode the `app` user can read, and nothing broader.
+
+### Setting the CI secret
+
+Generate a key outside the repository, store it, then delete the local copy:
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out jwt-ci-private.pem
+```
+
+```bash
+gh secret set JWT_PRIVATE_KEY --repo Tzimue-App/BlankJava < jwt-ci-private.pem
+```
+
+```bash
+rm jwt-ci-private.pem
+```
+
+It must be an **Actions** repository secret (not an environment secret). No Dependabot secret is needed.
+
+### Rotating the key
+
+Each key is identified by its `kid` (RFC 7638 thumbprint, logged at startup as `JWT keys loaded: active kid=…`).
+
+1. Extract the public key of the current key:
+
+   ```bash
+   openssl pkey -in infra/secrets/jwt-private.pem -pubout -out infra/secrets/jwt-previous-public.pem
+   ```
+
+2. Replace `jwt-private.pem` with a new key (command of section 1), and accept the previous one for verification by setting in `.env`:
+
+   ```bash
+   JWT_PREVIOUS_PUBLIC_KEY_PATHS=/run/secrets/jwt/jwt-previous-public.pem
+   ```
+
+3. Restart the backend. New tokens are signed with the new key; tokens of the previous key stay valid.
+4. After at least one access-token lifetime (10 minutes), empty `JWT_PREVIOUS_PUBLIC_KEY_PATHS`, delete `jwt-previous-public.pem` and restart.
+
+For the CI secret, no overlap is needed: each Selenium run starts a new stack, so `gh secret set` again is enough. Scheduled rotation comes with M2.
+
+## Allowed origins
+
+`refresh` and `logout` read the session cookie, so they only accept requests whose `Origin` header is one of `BLANKJAVA_ALLOWED_ORIGINS` (comma-separated `scheme://host[:port]`). The default in `compose.yaml` covers this stack: `https://localhost` for your browser and `https://frontend` for the Selenium browser. If you change `HTTPS_PORT`, add the port (`https://localhost:8443`). The `dev` profile accepts `http://localhost:4200` (`ng serve`).

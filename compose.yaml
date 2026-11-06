@@ -50,6 +50,13 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       # One JSON access log line per request, with trace id and the client IP seen by the backend
       BLANKJAVA_ACCESS_LOG_ENABLED: "true"
+      # JWT signing key (RS256), mounted below from infra/secrets/ (git-ignored, infra/README.md)
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt/jwt-private.pem
+      JWT_PREVIOUS_PUBLIC_KEY_PATHS: ${JWT_PREVIOUS_PUBLIC_KEY_PATHS:-}
+      # Browser origins of the stack: https://localhost for you, https://frontend for Selenium
+      BLANKJAVA_ALLOWED_ORIGINS: ${BLANKJAVA_ALLOWED_ORIGINS:-https://localhost,https://frontend}
+    volumes:
+      - ./infra/secrets:/run/secrets/jwt:ro
     depends_on:
       postgres:
         condition: service_healthy
