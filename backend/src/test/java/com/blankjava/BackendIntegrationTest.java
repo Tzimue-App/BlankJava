@@ -64,10 +64,11 @@ class BackendIntegrationTest {
     }
 
     @Test
-    void unknownPathIsAProblemWithTraceId() throws Exception {
+    void anUnknownPathWithoutTokenIsA401ProblemWithTraceId() throws Exception {
+        // Every route is protected unless public on purpose: no route discovery without a token
         HttpResponse<String> response = get("/api/unknown");
 
-        assertThat(response.statusCode()).isEqualTo(404);
+        assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.headers().firstValue("Content-Type"))
                 .hasValueSatisfying(type -> assertThat(type).startsWith("application/problem+json"));
         assertThat(response.body()).containsPattern("\"traceId\":\"[0-9a-f]{32}\"");

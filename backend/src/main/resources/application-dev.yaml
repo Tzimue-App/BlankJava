@@ -7,6 +7,14 @@ springdoc:
     # Display the contract (copied from api/openapi.yaml at build), not a spec rebuilt from the code
     url: /openapi.yaml
 
+blankjava:
+  security:
+    # ng serve (frontend/proxy.conf.json)
+    allowed-origins: http://localhost:4200
+    jwt:
+      # No key file needed for bootRun; sessions end when the backend restarts
+      ephemeral-key: true
+
 logging:
   # Human-readable lines locally instead of JSON
   structured:

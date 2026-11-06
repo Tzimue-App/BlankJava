@@ -9,6 +9,10 @@ name: "Selenium suite"
 
 on:
   workflow_call:
+    secrets:
+      JWT_PRIVATE_KEY:
+        description: RSA 3072 private key (PKCS#8 PEM) signing the access tokens of the stack
+        required: false
   workflow_dispatch:
 
 permissions:
@@ -40,6 +44,28 @@ jobs:
       - name: Create the build output directory
         if: steps.check.outputs.present == 'true'
         run: mkdir -p e2e/build
+
+      # compose.yaml mounts infra/secrets/ into the backend. The key comes from the JWT_PRIVATE_KEY
+      # secret; a PR from a fork or from Dependabot gets no repository secret, so a throw-away key
+      # is generated for that run instead. Readable by all (0644): the backend runs as another user
+      # than the runner, and the runner is discarded after the job.
+      - name: Provide the JWT signing key
+        if: steps.check.outputs.present == 'true'
+        env:
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+        run: |
+          mkdir -p infra/secrets
+          if [ -n "$JWT_PRIVATE_KEY" ]; then
+            printf '%s\n' "$JWT_PRIVATE_KEY" > infra/secrets/jwt-private.pem
+            echo "JWT signing key taken from the JWT_PRIVATE_KEY secret."
+          else
+            openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+              -out infra/secrets/jwt-private.pem 2> /dev/null
+            echo "::notice::JWT_PRIVATE_KEY secret not available (fork or Dependabot PR): throw-away key pair generated for this run."
+          fi
+          chmod 644 infra/secrets/jwt-private.pem
+          openssl pkey -in infra/secrets/jwt-private.pem -noout 2> /dev/null \
+            || { echo "::error::infra/secrets/jwt-private.pem is not a valid private key."; exit 1; }
 
       - name: Start PostgreSQL, backend, frontend and Selenium
         if: steps.check.outputs.present == 'true'

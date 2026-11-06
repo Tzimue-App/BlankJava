@@ -51,7 +51,9 @@ class LoggingIntegrationTest {
                 .header("traceparent", TRACEPARENT)
                 .GET());
 
-        assertThat(response.statusCode()).isEqualTo(404);
+        // Protected route without token: the 401 is written by the security filter chain, which
+        // must already see the trace id of traceparent
+        assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.body()).contains("\"traceId\":\"" + TRACE_ID + "\"");
     }
 
