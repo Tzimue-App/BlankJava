@@ -78,7 +78,9 @@ The `auth` and `users` operations (`register`, `login`, `refresh`, `logout`, `ge
 - **Responses carrying a token** have `Cache-Control: no-store`.
 - **Login errors are generic:** any credential mismatch gives the same `401` body; `LoginRequest` carries no policy constraint, so a short password never gets a `400` revealing the rules.
 
-**Why the request schemas carry loose lengths.** The backend generates Bean Validation from the contract (`useBeanValidation`), and `@Size` counts UTF-16 units on the raw value. The rules count Unicode code points after trimming (display name) or after NFKC normalisation (password): a valid 64-emoji password is 128 UTF-16 units. So the schemas only set hard upper bounds (`password` ≤ 256, `displayName` ≤ 200, `email` ≤ 254), and the backend checks the real rules, reported through `FieldError.code`:
+**Why the request schemas carry loose lengths.** The backend generates Bean Validation from the contract (`useBeanValidation`), and `@Size` counts UTF-16 units on the raw value. The rules count Unicode code points after trimming (display name) or after NFKC normalisation (password): a valid 64-emoji password is 128 UTF-16 units. So the schemas only set hard upper bounds (`password` ≤ 256, `displayName` ≤ 200, `email` ≤ 254), and the backend checks the real rules, reported through `FieldError.code`. For the same reason `RegisterRequest.email` has no `format: email`: the generated `@Email` would check the raw value and reject an address the backend accepts once trimmed (`"Jane@Example.com "`).
+
+The rules, reported through `FieldError.code`:
 
 | Field | Rule (backend) |
 |---|---|

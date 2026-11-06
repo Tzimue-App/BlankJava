@@ -35,6 +35,10 @@ class SecurityIntegrationTest {
      * making one public means adding it to {@code SecurityConfig.PUBLIC_ROUTES} <b>and</b> here.
      */
     private static final Set<String> PUBLIC = Set.of(
+            "POST /api/auth/login",
+            "POST /api/auth/logout",
+            "POST /api/auth/refresh",
+            "POST /api/auth/register",
             "POST /api/client-logs",
             "GET /actuator/health",
             "GET /actuator/health/**",

@@ -380,9 +380,11 @@ components:
       properties:
         email:
           type: string
-          format: email
           maxLength: 254
-          description: Trimmed and lower-cased by the backend before use.
+          description: |
+            An e-mail address, trimmed and lower-cased by the backend before its format is
+            checked. No `format: email` here: the generated constraint would reject the raw value
+            with its surrounding spaces.
         displayName:
           type: string
           minLength: 1

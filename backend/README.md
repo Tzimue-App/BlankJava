@@ -49,6 +49,40 @@ Keys: `JwtKeySet`, one active private key plus the previous public keys still ac
 | `blankjava.security.jwt.ephemeral-key` | — | `false` (`true` in `dev` and tests) |
 | `blankjava.security.allowed-origins` | `BLANKJAVA_ALLOWED_ORIGINS` | `https://localhost` |
 
+## Accounts and sessions
+
+Code: `src/main/java/com/blankjava/account/` (accounts, password rules) and `src/main/java/com/blankjava/auth/` (`/api/auth/*`, refresh tokens). Tables: `V2__accounts.sql` (`app_user`, `refresh_token`).
+
+`POST /api/auth/register` normalises the input, checks every rule (all broken rules are reported at once), stores the account and opens a session in one transaction: `201` with the access token and the user, the refresh token in the `refresh_token` cookie, `Cache-Control: no-store`, and a `user.registered` event on the `SECURITY_AUDIT` logger (user id and client IP, never the e-mail). `login`, `refresh` and `logout` answer `501` until #30.
+
+| Field | Normalisation | Rule (`code` when broken) |
+|---|---|---|
+| `email` | Trimmed (Unicode white space), lower-cased with `Locale.ROOT` | Required; ≤ 254 code points; `local@domain`, dot-atom local part ≤ 64, at least two domain labels (`invalid_format`); not registered yet (`409` `email_taken`) |
+| `displayName` | Trimmed | 2–50 code points (`too_short` / `too_long`); no control character (`invalid_format`) |
+| `password` | NFKC | 15–64 code points; not in the compromised-password list (`compromised_password`) |
+
+E-mail uniqueness is enforced by the unique index `app_user_email_uk`: when two registrations of the same address race past the existence check, the second insert fails on the index and still answers `409`.
+
+**Validation errors.** Every `400` caused by a field is the contract's `ValidationProblem`: `errors[] { field, code, message }`. Rules checked by the backend throw `InvalidFieldsException`; constraints generated from the contract (`@NotNull`, `@Size`…) are mapped by `FieldErrors`: missing or empty → `required`, length → `too_short` / `too_long`, anything else → `invalid_format`. Messages never repeat the rejected value.
+
+**Refresh tokens.** `RefreshTokenService`: 256 random bits, base64url in the cookie; the database keeps only their SHA-256 (hex), the user, a `family_id` per login and the expiry (`blankjava.security.refresh-token.lifetime`, 7 days). Cookie: `HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age=604800`.
+
+### Passwords
+
+- **Hashing:** Argon2id (Bouncy Castle) behind a `DelegatingPasswordEncoder`, stored as `{argon2}$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`. The prefix and the parameters travel with each hash, so the cost or the algorithm can be raised later without invalidating existing passwords. BCrypt is not used: its 72-byte input limit is below the 64 code points (up to 256 bytes) the policy accepts.
+- **Normalisation:** NFKC before measuring, checking and hashing, so the same password typed on another keyboard matches. Login (#30) must normalise the same way (`PasswordPolicy.normalize`).
+- **Compromised passwords:** `BlocklistPasswordChecker`, a Spring Security `CompromisedPasswordChecker` over `src/main/resources/passwords/compromised-passwords.txt` (5,328 entries from SecLists, MIT; source, version and how the file was made in the README next to it). Offline, case-insensitive.
+
+| Property | Default |
+|---|---|
+| `blankjava.security.password.argon2.memory-kib` | `19456` (19 MiB, OWASP minimum) |
+| `blankjava.security.password.argon2.iterations` | `2` |
+| `blankjava.security.password.argon2.parallelism` | `1` |
+
+The tests lower the cost (`src/test/resources/config/application.yaml`); `PasswordConfigTest` checks that `application.yaml` keeps the values above.
+
+**Tuning the cost on a new host.** One hash should take 100–300 ms on the production host: enough to slow down an offline attack, little enough for a login. Raise the memory first (it is what makes GPU attacks expensive), then the iterations; keep parallelism at 1 unless the host has cores to spare per login. Measure on the host itself, then set the properties (environment variables `BLANKJAVA_SECURITY_PASSWORD_ARGON2_MEMORYKIB`, `BLANKJAVA_SECURITY_PASSWORD_ARGON2_ITERATIONS`: Spring drops the dashes). Existing hashes keep working: each one is checked with the parameters it was made with. Memory is reserved per concurrent hash: 19 MiB × the number of simultaneous logins must fit in the container's memory.
+
 ## Tests
 
 | Task | Content |
@@ -58,4 +92,5 @@ Keys: `JwtKeySet`, one active private key plus the previous public keys still ac
 | `./gradlew check` | Both, Spotless, Error Prone, JaCoCo thresholds (80 % lines, 70 % branches) |
 
 - **Slice tests of protected or public routes** put the real access rules in the slice with `@ApiSecurity`, and get valid tokens from the `AccessTokenService` bean.
+- **Slice tests** list their controller (`@WebMvcTest(MyController.class)`): without one, the slice loads every controller of the application and needs all their dependencies.
 - **Contract compliance:** add `.andExpect(ContractValidation.matchesContract())` to a MockMvc call to check the response (status, headers, body) against `api/openapi.yaml`. Requests are not checked, so tests can send invalid ones on purpose.

@@ -4,3 +4,8 @@ blankjava:
     jwt:
       # A key pair generated in memory: no PEM file is committed
       ephemeral-key: true
+    # Cheap hashes keep the suites fast; the production cost is checked by PasswordConfigTest
+    password:
+      argon2:
+        memory-kib: 1024
+        iterations: 1

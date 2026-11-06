@@ -60,6 +60,16 @@ blankjava:
       previous-public-key-paths: ${JWT_PREVIOUS_PUBLIC_KEY_PATHS:}
       # A key generated at startup, lost on restart: tests and the dev profile only
       ephemeral-key: false
+    refresh-token:
+      # Lifetime of a refresh token and of its cookie (Max-Age)
+      lifetime: 7d
+    password:
+      # Argon2id cost (OWASP minimum). Raise it so one hash takes 100-300 ms on the production
+      # host: backend/README.md, section "Passwords"
+      argon2:
+        memory-kib: 19456
+        iterations: 2
+        parallelism: 1
 
 management:
   endpoints:
