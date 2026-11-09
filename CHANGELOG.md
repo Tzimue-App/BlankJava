@@ -13,7 +13,7 @@ The project version comes from the milestone branch (vX.Y.Z-a).
 Bump-api: 2
 Bump-backend: 2
 Bump-frontend: 2
-Bump-e2e: 0
+Bump-e2e: 2
 
 ### Features
 - Accounts API contract: `register`, `login`, `refresh`, `logout` (`/auth/*`) and `getCurrentUser` (`GET /users/me`), with the refresh cookie as a `refreshCookie` security scheme, `Set-Cookie` and `Cache-Control: no-store` headers, field-level validation errors (`ValidationProblem`, codes `required`, `invalid_format`, `too_short`, `too_long`, `compromised_password`), `409` `email_taken`, `403` on a missing or foreign `Origin`, and an example for every response (#28)
@@ -25,11 +25,13 @@ Bump-e2e: 0
 - Register page `/register` (lazy `accounts` feature, `anonymousGuard`): e-mail, display name, password and confirmation checked with the backend's rules (`shared/validators`, lengths in code points, password counted after NFKC with a live counter), show/hide password, `autocomplete` hints, pasting allowed; server field errors under their field (`compromised_password`, `email_taken`…), other failures as a banner with the trace id; on success the session opens and the user goes to a same-site `returnUrl` or `/me` (#33)
 - Login page `/login` (`anonymousGuard`): e-mail and password only required, one generic message on `401` whatever was wrong, password cleared after a refusal, other failures as a banner with the trace id; *Log out* in the header while logged in: revokes the refresh cookie inside the refresh Web Lock, forgets the session even when the backend is unreachable, goes to `/login`; `returnUrl` must also resolve to the application once tabs and new lines are removed (#34)
 - Profile page `/me` (`authGuard`): display name, e-mail and registration date in the browser's language, read from `GET /api/users/me` on every visit; loading state, error banner with the trace id and *Try again*; `/` now redirects to `/me` or `/login`, replacing the M0 home placeholder (#35)
+- Selenium journeys of the accounts (`@Tag("accounts")`): register, login and logout, profile and root redirect, and the session (reload, two tabs reloading together, logout in one tab ending the other, refused access token renewed and retried); axe-core scan of the register, login and profile pages (WCAG 2.1 A/AA, fails on serious or critical violations; `com.deque.html.axe-core:selenium` 4.14.0); test users registered through the API (#45)
 
 ### Patches
 - Contract: `RegisterRequest.email` loses `format: email`, which made the generated `@Email` reject an address with surrounding spaces before the backend trims it (#29)
 - Backend `400` validation errors carry the contract's `code` per field (`required`, `invalid_format`, `too_short`, `too_long`) instead of a free-text message only (#29)
 - Contract response validator in the backend tests: no longer adds `additionalProperties: false` to schemas that do not declare it, which made it reject every `ValidationProblem` (`allOf`) (#29)
+- Selenium `SmokeTest`: `/` now leads to the login page (#35), so the smoke journey checks that instead of the removed M0 home heading; `HomePage` replaced by `AppFrame` (#45)
 
 ### Bug Fixes
 - Backend `400` and `500` Problem Details now always include `type` (`about:blank`), which the contract requires; Spring left it out (found by the contract response validator of #37) (#37)

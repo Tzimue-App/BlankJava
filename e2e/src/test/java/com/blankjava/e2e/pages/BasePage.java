@@ -1,8 +1,11 @@
 package com.blankjava.e2e.pages;
 
 import com.blankjava.e2e.support.Config;
+import java.net.URI;
 import java.time.Duration;
 import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -39,12 +42,51 @@ public abstract class BasePage {
         try {
             wait.until(ExpectedConditions.presenceOfElementLocated(testIdSelector(testId)));
             return true;
-        } catch (org.openqa.selenium.TimeoutException notFound) {
+        } catch (TimeoutException notFound) {
             return false;
         }
     }
 
-    private static By testIdSelector(String testId) {
+    /** Whether {@code [data-testid="<testId>"]} is absent or hidden, waiting for it to go if needed. */
+    protected final boolean lacksTestId(String testId) {
+        try {
+            return wait.until(ExpectedConditions.invisibilityOfElementLocated(testIdSelector(testId)));
+        } catch (TimeoutException stillThere) {
+            return false;
+        }
+    }
+
+    /** Waits until {@code [data-testid="<testId>"]} can be clicked (visible and enabled). */
+    protected final void waitUntilEnabled(String testId) {
+        wait.until(ExpectedConditions.elementToBeClickable(testIdSelector(testId)));
+    }
+
+    /** Waits until the browser shows {@code pathAndQuery} of this application, and returns it. */
+    public final String waitForPath(String pathAndQuery) {
+        try {
+            wait.until(driver -> pathAndQuery.equals(currentPath()));
+        } catch (TimeoutException e) {
+            throw new AssertionError("Expected " + pathAndQuery + " but the browser shows " + currentPath(), e);
+        }
+        return currentPath();
+    }
+
+    /** Path, query and fragment of the current URL, e.g. {@code /login?returnUrl=%2Fme}. */
+    public final String currentPath() {
+        URI uri = URI.create(driver.getCurrentUrl());
+        return uri.getRawPath()
+                + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery())
+                + (uri.getRawFragment() == null ? "" : "#" + uri.getRawFragment());
+    }
+
+    /** {@code data-testid} of the element that has the keyboard focus, or an empty string. */
+    public final String focusedTestId() {
+        Object value = ((JavascriptExecutor) driver)
+                .executeScript("return document.activeElement?.getAttribute('data-testid') ?? '';");
+        return String.valueOf(value);
+    }
+
+    protected static By testIdSelector(String testId) {
         return By.cssSelector("[data-testid=\"" + testId + "\"]");
     }
 }
