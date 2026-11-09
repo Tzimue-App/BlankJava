@@ -1,5 +1,6 @@
 package com.blankjava.security;
 
+import com.blankjava.logging.UserIdFilter;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
@@ -72,7 +74,9 @@ public class SecurityConfig {
                         .authenticationEntryPoint(problems)
                         .accessDeniedHandler(problems))
                 .exceptionHandling(
-                        errors -> errors.authenticationEntryPoint(problems).accessDeniedHandler(problems));
+                        errors -> errors.authenticationEntryPoint(problems).accessDeniedHandler(problems))
+                // user.id in the logging context once the token is validated
+                .addFilterAfter(new UserIdFilter(), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 

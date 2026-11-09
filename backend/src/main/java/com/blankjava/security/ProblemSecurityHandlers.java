@@ -23,6 +23,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProblemSecurityHandlers implements AuthenticationEntryPoint, AccessDeniedHandler {
 
+    /** Detail of every {@code 401} about the access token. */
+    public static final String UNAUTHORIZED_DETAIL = "The access token is missing, expired or invalid.";
+
+    /** RFC 6750 challenge when a token was sent but cannot be used. */
+    public static final String INVALID_TOKEN_CHALLENGE = "Bearer error=\"invalid_token\"";
+
     private final TraceIds traceIds;
 
     public ProblemSecurityHandlers(TraceIds traceIds) {
@@ -33,10 +39,9 @@ public class ProblemSecurityHandlers implements AuthenticationEntryPoint, Access
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
             throws IOException {
-        String challenge =
-                exception instanceof OAuth2AuthenticationException ? "Bearer error=\"invalid_token\"" : "Bearer";
+        String challenge = exception instanceof OAuth2AuthenticationException ? INVALID_TOKEN_CHALLENGE : "Bearer";
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, challenge);
-        write(response, request, HttpStatus.UNAUTHORIZED, "The access token is missing, expired or invalid.");
+        write(response, request, HttpStatus.UNAUTHORIZED, UNAUTHORIZED_DETAIL);
     }
 
     @Override

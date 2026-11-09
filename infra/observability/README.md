@@ -9,7 +9,7 @@ Every container writes to stdout, one event per line. Docker rotates the files (
 | Service | Format | Notable fields |
 |---|---|---|
 | `frontend` (Nginx) | JSON, flat ECS keys | `event.dataset=nginx.access`, `trace.id`, `request.id`, `client.ip`, `url.path` (no query string), `http.response.status_code`, `nginx.request_time_s` |
-| `backend` | ECS JSON (Spring Boot structured logging); readable text in the `dev` profile | `log.level`, `message`, `trace.id`, `span.id`, `request.id`, `event.dataset` |
+| `backend` | ECS JSON (Spring Boot structured logging); readable text in the `dev` profile | `log.level`, `message`, `trace.id`, `span.id`, `request.id`, `event.dataset`; `user.id` on authenticated requests |
 | `postgres` | Text | Statements slower than 500 ms |
 
 Backend datasets:

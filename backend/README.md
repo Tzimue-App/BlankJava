@@ -93,6 +93,12 @@ A session is an access token (response body, kept in memory by the frontend, 10 
 | `auth.logout` | INFO | `user.id`, `client.ip`; only when an active token was revoked |
 
 
+### Current user
+
+`GET /api/users/me` (`account/UserController.java`) returns the token owner's `{ id, email, displayName, createdAt }`, read from the database on each call, never the password hash. The user is the token's `sub` and nothing else: the operation takes no user id, so no other account can be read. A valid token whose account no longer exists is a `401` with the same body and `WWW-Authenticate: Bearer error="invalid_token"` as an invalid token (`TokenOwnerNotFoundException`).
+
+**`user.id` in the logs.** `logging/UserIdFilter`, placed in the security filter chain right after the token is validated, puts the `sub` into the logging context (MDC `user.id`) until the request ends; every line written while an authenticated request runs carries it. Anonymous requests and public routes (which ignore the `Authorization` header) have none. The access log line, written after the security chain returns, takes it from a request attribute.
+
 ### Passwords
 
 - **Hashing:** Argon2id (Bouncy Castle) behind a `DelegatingPasswordEncoder`, stored as `{argon2}$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`. The prefix and the parameters travel with each hash, so the cost or the algorithm can be raised later without invalidating existing passwords. BCrypt is not used: its 72-byte input limit is below the 64 code points (up to 256 bytes) the policy accepts.
