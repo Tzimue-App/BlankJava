@@ -183,5 +183,108 @@ class ChangelogBumpsTest(unittest.TestCase):
         self.assertTrue(any("cannot be lowered" in e for e in errors), errors)
 
 
+class BackMergeTest(unittest.TestCase):
+    """
+    Back-merges into dev keep dev's project version (issue #54), on a real repository with a
+    bare 'origin'. Before the fix, test → dev brought 0.1.0-b into dev, and merging dev into
+    the open milestone branch v0.2.0-a replaced its version.
+    """
+
+    GIT_ENV = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_AUTHOR_NAME": "t",
+               "GIT_AUTHOR_EMAIL": "t@example.test", "GIT_COMMITTER_NAME": "t",
+               "GIT_COMMITTER_EMAIL": "t@example.test"}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = os.getcwd()
+        # Isolated from the machine's Git configuration (autocrlf, signing, default branch…)
+        self.saved_env = {k: os.environ.get(k) for k in self.GIT_ENV}
+        os.environ.update(self.GIT_ENV)
+        self.real_which = bv.shutil.which
+        bv.shutil.which = lambda name: None  # never open a real pull request
+        origin = os.path.join(self.tmp.name, "origin.git")
+        bv.run_command(f'git init -q --bare "{origin}"')
+        os.chdir(self.tmp.name)
+        bv.run_command(f'git clone -q "{origin}" work')
+        os.chdir("work")
+        # dev released v0.1.0-a, test was promoted from it
+        self.commit("dev", version="0.1.0-a", changelog="## [v0.1.0-a]\n", new_branch=True)
+        bv.run_command("git branch test")
+        bv.run_command("git push -q origin refs/heads/dev refs/heads/test")
+
+    def tearDown(self):
+        bv.shutil.which = self.real_which
+        os.chdir(self.cwd)
+        for key, value in self.saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        self.tmp.cleanup()
+
+    def commit(self, branch, version=None, changelog=None, other=None, new_branch=False):
+        bv.run_command(f"git checkout -q {'-b ' if new_branch else ''}{branch}")
+        if version:
+            write("package.json", json.dumps({"name": "x", "version": version}, indent=2) + "\n")
+        if changelog:
+            write("CHANGELOG.md", changelog)
+        if other:
+            write("other.txt", other)
+        bv.run_command("git add -A")
+        bv.run_command(f'git commit -q -m "{branch} {version or other or "changelog"}"')
+
+    def release_test(self, other=None):
+        """test releases v0.1.0-b, then back-merges into dev, as bump_version.py does."""
+        self.commit("test", version="0.1.0-b", changelog="## [v0.1.0-b]\n## [v0.1.0-a]\n", other=other)
+        bv.run_command("git push -q origin refs/heads/test")
+        with contextlib.redirect_stdout(io.StringIO()):
+            bv.back_merge("test", "dev", "v0.1.0-b", keep_version=True)
+
+    def origin_file(self, branch, path):
+        bv.run_command("git fetch -q origin")
+        return bv.run_command(f"git show origin/{branch}:{path}")
+
+    def origin_version(self, branch):
+        return json.loads(self.origin_file(branch, "package.json"))["version"]
+
+    def test_dev_keeps_its_version_and_gets_the_rest(self):
+        self.release_test()
+        self.assertEqual(self.origin_version("dev"), "0.1.0-a")
+        self.assertIn("v0.1.0-b", self.origin_file("dev", "CHANGELOG.md"))
+
+    def test_a_conflict_on_the_version_only_is_resolved_for_dev(self):
+        # dev moved on (the next milestone was merged) before test released
+        self.commit("dev", version="0.2.0-a")
+        bv.run_command("git push -q origin refs/heads/dev")
+        self.release_test()
+        self.assertEqual(self.origin_version("dev"), "0.2.0-a")
+        self.assertIn("v0.1.0-b", self.origin_file("dev", "CHANGELOG.md"))
+
+    def test_an_open_milestone_merges_dev_without_losing_its_version(self):
+        self.commit("v0.2.0-a", version="0.2.0-a", new_branch=True)
+        self.release_test()
+        bv.run_command("git checkout -q v0.2.0-a")
+        bv.run_command("git merge -q --no-edit origin/dev")
+        self.assertEqual(bv.get_current_version(), "0.2.0-a")
+        self.assertIn("v0.1.0-b", read("CHANGELOG.md"))
+
+    def test_any_other_conflict_is_left_to_a_pull_request(self):
+        self.commit("dev", other="dev side")
+        bv.run_command("git push -q origin refs/heads/dev")
+        dev_before = bv.run_command("git rev-parse origin/dev")
+        self.release_test(other="test side")
+        bv.run_command("git fetch -q origin")
+        self.assertEqual(bv.run_command("git rev-parse origin/dev"), dev_before)
+        self.assertTrue(bv.run_command("git ls-remote --heads origin refs/heads/backmerge/v0.1.0-b-into-dev"))
+        self.assertFalse(bv.command_succeeds("git rev-parse -q --verify MERGE_HEAD"))
+
+    def test_main_into_test_still_takes_the_stable_version(self):
+        self.commit("main", version="0.1.0", new_branch=True)
+        bv.run_command("git push -q origin refs/heads/main")
+        with contextlib.redirect_stdout(io.StringIO()):
+            bv.back_merge("main", "test", "v0.1.0")
+        self.assertEqual(self.origin_version("test"), "0.1.0")
+
+
 if __name__ == "__main__":
     unittest.main()
