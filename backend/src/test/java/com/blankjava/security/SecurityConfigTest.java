@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.blankjava.web.ApiPathConfig;
 import com.blankjava.web.ProblemDetailsHandler;
 import com.blankjava.web.TraceIds;
+import java.net.URI;
 import java.security.Principal;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,19 @@ class SecurityConfigTest {
                 .andExpect(jsonPath("$.title").value("Unauthorized"))
                 .andExpect(jsonPath("$.instance").value("/api/test/protected"))
                 .andExpect(jsonPath("$.traceId").value(matchesPattern("[0-9a-f]{32}")));
+    }
+
+    @Test
+    void anEncodedHostilePathIsReturnedAsAJsonStringInTheProblem() throws Exception {
+        String path = "/api/test/protected/%22%3Cscript%3Ealert(1)%3E";
+
+        mvc.perform(get(URI.create(path)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(jsonPath("$.type").value("about:blank"))
+                .andExpect(jsonPath("$.detail").value(ProblemSecurityHandlers.UNAUTHORIZED_DETAIL))
+                .andExpect(jsonPath("$.instance").value(path));
     }
 
     @Test

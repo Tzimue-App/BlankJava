@@ -33,6 +33,7 @@ Bump-e2e: 2
 - Contract response validator in the backend tests: no longer adds `additionalProperties: false` to schemas that do not declare it, which made it reject every `ValidationProblem` (`allOf`) (#29)
 - Selenium `SmokeTest`: `/` now leads to the login page (#35), so the smoke journey checks that instead of the removed M0 home heading; `HomePage` replaced by `AppFrame` (#45)
 - Selenium suite: its HTTP client (test users, report header) trusts only the stack's certificate, given by `E2E_TLS_CERT` (the `certs` volume, mounted read-only into the `e2e` service), instead of accepting any certificate; hostname verification stays on (code scanning alert #3) (#51)
+- Backend `401`/`403` Problem Details from the security filter chain are built as a `ProblemDetail` and serialized by the application's Jackson mapper instead of a string template; same fields and values; `instance` is the request path as received, left out when it is not a valid URI reference (code scanning alert #4) (#52)
 
 ### Bug Fixes
 - Backend `400` and `500` Problem Details now always include `type` (`about:blank`), which the contract requires; Spring left it out (found by the contract response validator of #37) (#37)
