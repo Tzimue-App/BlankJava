@@ -45,8 +45,18 @@ Point the suite at any reachable Selenium Grid and frontend, e.g. a stack whose 
 published on the host:
 
 ```bash
-SELENIUM_URL=http://localhost:4444 E2E_BASE_URL=https://localhost ./gradlew test
+docker compose cp frontend:/etc/nginx/certs/tls.crt e2e/build/stack.crt
+cd e2e
+SELENIUM_URL=http://localhost:4444 E2E_BASE_URL=https://localhost E2E_TLS_CERT="$PWD/build/stack.crt" ./gradlew test
 ```
+
+`E2E_TLS_CERT` is the stack's certificate (PEM). The suite's own HTTP client (`StackHttp`: test
+users, report header) trusts that certificate and nothing else, and still checks the hostname
+(its SAN covers `frontend` and `localhost`). The `e2e` Compose service sets it to the `certs`
+volume, mounted read-only. Without it the JVM's default trust store applies, which suits a stack
+with a real certificate; a path that cannot be read fails the first test that calls the API.
+Chrome, in the Selenium container, accepts the self-signed certificate on its own
+(`DriverFactory`).
 
 ## Writing a journey
 
@@ -67,13 +77,13 @@ SELENIUM_URL=http://localhost:4444 E2E_BASE_URL=https://localhost ./gradlew test
 
 | Path | Role |
 |---|---|
-| `support/Config.java` | `SELENIUM_URL`, `E2E_BASE_URL`, this module's version |
+| `support/Config.java` | `SELENIUM_URL`, `E2E_BASE_URL`, `E2E_TLS_CERT`, this module's version |
 | `support/DriverFactory.java` | One `WebDriver` per test, injected as a parameter |
 | `support/ReportingExtension.java` | Screenshot (+ console log, page source on failure) after every test |
 | `support/EnvironmentReportExtension.java` | Writes the Allure report's "Environment" header once, from `/actuator/info` |
 | `support/Steps.java`, `support/Screenshots.java` | Named steps, on-demand screenshots |
 | `support/TestUsers.java` | Unique test accounts, registered through the form or the API |
-| `support/StackHttp.java` | HTTP client for calls to the stack outside the browser (self-signed certificate) |
+| `support/StackHttp.java` | HTTP client for calls to the stack outside the browser, trusting only `E2E_TLS_CERT` |
 | `support/Accessibility.java` | axe-core scan of the current page |
 | `pages/` | Page Objects: `BasePage`, `AppFrame` (header, footer), `RegisterPage`, `LoginPage`, `ProfilePage` |
 
