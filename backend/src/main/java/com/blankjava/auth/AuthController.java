@@ -1,16 +1,15 @@
 package com.blankjava.auth;
 
+import com.blankjava.account.UserController;
 import com.blankjava.api.AuthApi;
 import com.blankjava.api.model.LoginRequest;
 import com.blankjava.api.model.RegisterRequest;
 import com.blankjava.api.model.SessionResponse;
-import com.blankjava.api.model.User;
 import com.blankjava.auth.SessionService.Session;
 import com.blankjava.logging.SecurityAuditLog;
 import com.blankjava.logging.SecurityAuditLog.Outcome;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -116,10 +115,6 @@ public class AuthController implements AuthApi {
         return new SessionResponse(
                 session.accessToken().value(),
                 session.accessToken().expiresInSeconds(),
-                new User(
-                        session.user().getId(),
-                        session.user().getEmail(),
-                        session.user().getDisplayName(),
-                        session.user().getCreatedAt().atOffset(ZoneOffset.UTC)));
+                UserController.toApi(session.user()));
     }
 }

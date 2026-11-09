@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -17,7 +18,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * One structured log line per request ({@code event.dataset=backend.access}), written through the
  * normal logging so it carries the request's {@code trace.id} and {@code request.id} like every other
  * line (docs/technical_analysis.md §6.2). Runs inside the tracing observation filter; the client IP
- * is the one resolved from Nginx's {@code X-Forwarded-For}. Switched on by compose.yaml; Docker
+ * is the one resolved from Nginx's {@code X-Forwarded-For}, and {@code user.id} is added when the
+ * request was authenticated ({@link UserIdFilter}). Switched on by compose.yaml; Docker
  * health checks are not logged.
  */
 @Component
@@ -42,8 +44,13 @@ public class AccessLogFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
         } finally {
             long durationNanos = System.nanoTime() - start;
-            log.atInfo()
-                    .addKeyValue("event.dataset", "backend.access")
+            LoggingEventBuilder line = log.atInfo();
+            // Written after the security chain has returned: user.id is no longer in the MDC
+            Object userId = request.getAttribute(UserIdFilter.REQUEST_ATTRIBUTE);
+            if (userId != null) {
+                line = line.addKeyValue(UserIdFilter.MDC_KEY, userId);
+            }
+            line.addKeyValue("event.dataset", "backend.access")
                     .addKeyValue("http.request.method", request.getMethod())
                     .addKeyValue("url.path", request.getRequestURI())
                     .addKeyValue("http.response.status_code", response.getStatus())
