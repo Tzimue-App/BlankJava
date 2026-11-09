@@ -43,6 +43,14 @@ Code: `core/auth/` (`docs/technical_analysis.md` §5.2). A session is an access 
 
 **Rule: every refresh goes through `AuthSession.refresh()`.** The backend accepts a refresh cookie once (strict rotation, backend `README.md`), and the tabs of a browser share that cookie. `refresh()` runs inside the Web Lock `blankjava-auth-refresh` (`navigator.locks`), so two tabs reloading together refresh one after the other: the second one sends the cookie the first one left, and both end up with their own access token. Calling the refresh endpoint any other way would send a cookie twice and log a tab out. Browsers without Web Locks only get the single refresh within a tab: two tabs refreshing at the same instant there can still log one out.
 
+## Accounts pages
+
+Feature `features/accounts/` (lazy-loaded, for anonymous visitors: `anonymousGuard`).
+
+- `/register` (`RegisterPage`): the form checks the backend's rules before sending (`shared/validators/account-validators.ts`: same e-mail syntax, display name 2–50 and password 15–64 characters counted in code points, the password after NFKC). What only the server knows comes back as field errors and shows under the field: `email_taken`, `compromised_password`. Any other failure shows a banner with the request's trace id. On success the session opens (`AuthSession.start`) and the user goes to `returnUrl` if it is a path of this application (`return-url.ts`), else to `/me`.
+- Error messages are keyed by the contract's `FieldError` codes, so a client-side error and the same error from the server read the same.
+- Every field, button and error has a `data-testid` for the Selenium journeys (#45).
+
 ## Image
 
 Built from the repository root (it needs `api/openapi.yaml`):

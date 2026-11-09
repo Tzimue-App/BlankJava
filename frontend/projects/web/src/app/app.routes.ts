@@ -15,6 +15,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/home/home.routes').then((m) => m.HOME_ROUTES),
       },
       {
+        path: '',
+        loadChildren: () =>
+          import('./features/accounts/accounts.routes').then((m) => m.ACCOUNTS_ROUTES),
+      },
+      {
         path: '**',
         title: 'Page not found',
         loadComponent: () => import('./layout/not-found/not-found').then((m) => m.NotFound),
