@@ -8,16 +8,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
@@ -64,7 +59,7 @@ public class EnvironmentReportExtension implements BeforeAllCallback {
     private java.util.Map<String, String> fetchBackendInfo() {
         java.util.Map<String, String> info = new java.util.HashMap<>();
         try {
-            HttpClient client = trustingHttpClient();
+            HttpClient client = StackHttp.client();
             HttpRequest request = HttpRequest.newBuilder(URI.create(Config.baseUrl() + "/actuator/info"))
                     .timeout(Duration.ofSeconds(10))
                     .GET()
@@ -79,30 +74,5 @@ public class EnvironmentReportExtension implements BeforeAllCallback {
             info.put("release", "unreachable: " + e.getMessage());
         }
         return info;
-    }
-
-    /** The stack's TLS certificate is self-signed (infra/README.md); this client only relaxes trust. */
-    private static HttpClient trustingHttpClient() {
-        try {
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, new TrustManager[] {new PermissiveTrustManager()}, new SecureRandom());
-            return HttpClient.newBuilder().sslContext(sslContext).build();
-        } catch (NoSuchAlgorithmException | java.security.KeyManagementException e) {
-            throw new IllegalStateException("Could not build a TLS client", e);
-        }
-    }
-
-    private static final class PermissiveTrustManager implements X509TrustManager {
-
-        @Override
-        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) {}
-
-        @Override
-        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) {}
-
-        @Override
-        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-            return new java.security.cert.X509Certificate[0];
-        }
     }
 }
