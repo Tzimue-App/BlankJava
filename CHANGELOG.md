@@ -12,7 +12,7 @@ The project version comes from the milestone branch (vX.Y.Z-a).
 -->
 Bump-api: 2
 Bump-backend: 2
-Bump-frontend: 0
+Bump-frontend: 2
 Bump-e2e: 0
 
 ### Features
@@ -21,6 +21,7 @@ Bump-e2e: 0
 - Registration `POST /api/auth/register`: e-mail trimmed and lower-cased, display name 2–50 code points, password 15–64 code points after NFKC and not in an offline list of 5,328 breached passwords (SecLists, MIT), Argon2id hash (`{argon2}`, 19 MiB, 2 iterations); `201` with the session (access token, `refresh_token` cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, 7 days, stored as a SHA-256 hash) and `Cache-Control: no-store`; every `400` is a `ValidationProblem` with a `code` per field; `409` `email_taken`, also when two registrations race; `user.registered` audit event. (#29)
 - Sessions: `POST /api/auth/login` (same `401` body for an unknown e-mail, a wrong password or a 3-character one, dummy hash for unknown e-mails, hash re-encoded when its cost is below the configuration), `refresh` (strict rotation in the same token family, row-locked so a cookie works once even under concurrent requests; `401` clears the cookie) and `logout` (`204`, idempotent, cookie cleared); `refresh` and `logout` require an allowed `Origin`, a missing one is `403`; `Cache-Control: no-store` on token responses; audit events `auth.login.succeeded`, `auth.login.failed` (masked e-mail), `auth.logout` (#30)
 - Current user `GET /api/users/me`: the access token owner's `id`, `email`, `displayName` and `createdAt`, read from the database; the user comes from the token's `sub` only; a valid token whose account was deleted is a `401` like an invalid token; `user.id` in the logging context of every authenticated request and on its access log line (#31)
+- Frontend session handling in `core/auth/`: `AuthSession` keeps the access token in memory only (never Web Storage or cookies) with `currentUser` and `isAuthenticated` signals; the session is restored from the refresh cookie at startup (anonymous without one, no error); `authInterceptor` adds the bearer token to `/api/**` except `/api/auth/**`, refreshes once for concurrent `401`s and retries once, and sends the user to `/login?returnUrl=…` when that fails; refreshes run one at a time across tabs inside the Web Lock `blankjava-auth-refresh`; `authGuard` and `anonymousGuard` (#32)
 
 ### Patches
 - Contract: `RegisterRequest.email` loses `format: email`, which made the generated `@Email` reject an address with surrounding spaces before the backend trims it (#29)

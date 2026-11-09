@@ -3,6 +3,7 @@ import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { App } from './app';
 import { appConfig } from './app.config';
+import { AuthSession } from './core/auth/auth-session';
 import { RuntimeConfigService } from './core/config/runtime-config';
 
 describe('appConfig', () => {
@@ -17,6 +18,7 @@ describe('appConfig', () => {
     const initStatus = TestBed.inject(ApplicationInitStatus);
 
     http.expectOne('/config.json').flush({ release: '0.1.0-b' });
+    http.expectOne('/api/auth/refresh').flush(null, { status: 401, statusText: 'Unauthorized' });
     await initStatus.donePromise;
 
     expect(initStatus.done).toBe(true);
@@ -24,8 +26,23 @@ describe('appConfig', () => {
     http.verify();
   });
 
+  it('restores the session from the refresh cookie before the application starts', async () => {
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/config.json').flush({});
+    http.expectOne('/api/auth/refresh').flush({
+      accessToken: 'token',
+      expiresIn: 600,
+      user: { id: 'id', email: 'jane@example.com', displayName: 'Jane', createdAt: 'x' },
+    });
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+
+    expect(TestBed.inject(AuthSession).currentUser()?.displayName).toBe('Jane');
+  });
+
   it('bootstraps the root component around the router outlet', async () => {
-    TestBed.inject(HttpTestingController).expectOne('/config.json').flush({});
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/config.json').flush({});
+    http.expectOne('/api/auth/refresh').flush(null, { status: 401, statusText: 'Unauthorized' });
     await TestBed.inject(ApplicationInitStatus).donePromise;
 
     const fixture = TestBed.createComponent(App);
