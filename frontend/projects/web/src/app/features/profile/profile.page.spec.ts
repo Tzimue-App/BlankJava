@@ -63,17 +63,15 @@ describe('ProfilePage', () => {
   });
 
   it('shows the error banner with the trace id on a server error, and can try again', async () => {
-    backend
-      .expectOne(ME)
-      .flush(
-        {
-          type: 'about:blank',
-          title: 'Error',
-          status: 500,
-          traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
-        },
-        { status: 500, statusText: 'Server Error' },
-      );
+    backend.expectOne(ME).flush(
+      {
+        type: 'about:blank',
+        title: 'Error',
+        status: 500,
+        traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+      },
+      { status: 500, statusText: 'Server Error' },
+    );
     await settle();
 
     expect(element('profile-error-banner')?.getAttribute('role')).toBe('alert');
