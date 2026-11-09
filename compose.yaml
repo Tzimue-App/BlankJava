@@ -150,8 +150,11 @@ services:
     environment:
       SELENIUM_URL: http://selenium:4444
       E2E_BASE_URL: https://frontend
+      # The stack's self-signed certificate: the only one the suite's HTTP client trusts
+      E2E_TLS_CERT: /certs/tls.crt
     volumes:
       - ./e2e/build:/src/e2e/build
+      - certs:/certs:ro
     depends_on:
       selenium:
         condition: service_healthy
