@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 
@@ -20,10 +20,13 @@ describe('App routes', () => {
     TestBed.inject(HttpTestingController).match('/actuator/info');
   });
 
-  it('renders the lazy-loaded home feature inside the shell', async () => {
+  it('sends an anonymous visitor from / to the login page inside the shell', async () => {
     await harness.navigateByUrl('/');
 
-    expect(harness.fixture.nativeElement.querySelector('[data-testid="home"]')).not.toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/login');
+    expect(
+      harness.fixture.nativeElement.querySelector('[data-testid="login-email"]'),
+    ).not.toBeNull();
     expect(harness.fixture.nativeElement.querySelector('[data-testid="footer"]')).not.toBeNull();
   });
 
@@ -32,6 +35,5 @@ describe('App routes', () => {
 
     const notFound = harness.fixture.nativeElement.querySelector('[data-testid="not-found"]');
     expect(notFound?.textContent).toContain('Page not found');
-    expect(harness.fixture.nativeElement.querySelector('[data-testid="home"]')).toBeNull();
   });
 });

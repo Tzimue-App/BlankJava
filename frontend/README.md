@@ -54,6 +54,14 @@ Feature `features/accounts/` (lazy-loaded, for anonymous visitors: `anonymousGua
 - Error messages are keyed by the contract's `FieldError` codes, so a client-side error and the same error from the server read the same.
 - Every field, button and error has a `data-testid` for the Selenium journeys (#45).
 
+## Profile page
+
+Feature `features/profile/` (lazy-loaded, `authGuard`: an anonymous visitor goes to `/login?returnUrl=%2Fme` and comes back after logging in).
+
+- `/me` (`ProfilePage`) reads `GET /api/users/me` on every visit (`ProfileService`), never the user of the session response, so it is never stale. It shows a loading state, then the display name (heading), the e-mail and _Member since_, the registration date in the browser's language (`Intl.DateTimeFormat`, long date). A failure shows the error banner with the trace id and a _Try again_ button.
+- Values are interpolated, never bound as HTML: a display name like `<img src=x onerror=…>` shows as text.
+- `/` redirects to `/me` when logged in, `/login` otherwise. The placeholder `home` feature of M0 is gone.
+
 ## Image
 
 Built from the repository root (it needs `api/openapi.yaml`):

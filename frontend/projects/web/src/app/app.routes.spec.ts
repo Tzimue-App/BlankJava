@@ -9,6 +9,7 @@ import { AuthSession } from './core/auth/auth-session';
 import { sessionFor } from './core/auth/auth-session.testing';
 import { LoginPage } from './features/accounts/login/login.page';
 import { RegisterPage } from './features/accounts/register/register.page';
+import { ProfilePage } from './features/profile/profile.page';
 
 describe('routes', () => {
   beforeEach(() => {
@@ -58,5 +59,23 @@ describe('routes', () => {
     await harness.navigateByUrl('/login');
 
     expect(TestBed.inject(Router).url).toBe('/me');
+  });
+
+  it('/ leads a logged-in user to /me', async () => {
+    TestBed.inject(AuthSession).start(sessionFor('token'));
+    const harness = await RouterTestingHarness.create();
+
+    await harness.navigateByUrl('/');
+
+    expect(TestBed.inject(Router).url).toBe('/me');
+    expect(harness.fixture.debugElement.query(By.directive(ProfilePage))).not.toBeNull();
+  });
+
+  it('/me sends an anonymous visitor to /login with /me as returnUrl', async () => {
+    const harness = await RouterTestingHarness.create();
+
+    await harness.navigateByUrl('/me');
+
+    expect(TestBed.inject(Router).url).toBe('/login?returnUrl=%2Fme');
   });
 });
