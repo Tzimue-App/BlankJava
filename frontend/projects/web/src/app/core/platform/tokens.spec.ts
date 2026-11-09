@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { STORAGE, WINDOW } from './tokens';
+import { LOCKS, STORAGE, WINDOW } from './tokens';
 
 describe('platform tokens', () => {
   it('WINDOW is the default view of the document', () => {
@@ -26,5 +26,28 @@ describe('platform tokens', () => {
     TestBed.configureTestingModule({ providers: [{ provide: WINDOW, useValue: blocked }] });
 
     expect(TestBed.inject(STORAGE)).toBeNull();
+  });
+
+  it('LOCKS is the Web Locks API of the window', () => {
+    const locks = {} as LockManager;
+    TestBed.configureTestingModule({
+      providers: [{ provide: WINDOW, useValue: { navigator: { locks } } as unknown as Window }],
+    });
+
+    expect(TestBed.inject(LOCKS)).toBe(locks);
+  });
+
+  it('LOCKS is null where the browser lacks Web Locks', () => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: WINDOW, useValue: { navigator: {} } as unknown as Window }],
+    });
+
+    expect(TestBed.inject(LOCKS)).toBeNull();
+  });
+
+  it('LOCKS is null without a browser window', () => {
+    TestBed.configureTestingModule({ providers: [{ provide: WINDOW, useValue: null }] });
+
+    expect(TestBed.inject(LOCKS)).toBeNull();
   });
 });
