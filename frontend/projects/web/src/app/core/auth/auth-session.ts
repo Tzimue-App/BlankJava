@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Api } from '../api/generated/api';
+import { logout as logoutSession } from '../api/generated/fn/auth/logout';
 import { refresh as refreshSession } from '../api/generated/fn/auth/refresh';
 import { SessionResponse } from '../api/generated/models/session-response';
 import { User } from '../api/generated/models/user';
@@ -59,6 +60,24 @@ export class AuthSession {
       this.#refreshing = null;
     });
     return this.#refreshing;
+  }
+
+  /**
+   * Logs out: revokes the refresh cookie on the backend, then forgets the session. The session is
+   * forgotten even when the call fails (backend unreachable): the user asked to leave. Runs inside
+   * the refresh lock, so it never presents a cookie that another tab is rotating at that moment.
+   */
+  async logout(): Promise<void> {
+    try {
+      await this.serialised(async () => {
+        await this.api.invoke(logoutSession);
+        return true;
+      });
+    } catch {
+      // Nothing to do: the cookie expires on its own, and this tab forgets the session below
+    } finally {
+      this.end();
+    }
   }
 
   /** Startup: restores the session of a previous page load, if its cookie is still valid. */

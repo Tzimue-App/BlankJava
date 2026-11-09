@@ -171,4 +171,29 @@ describe('AuthSession', () => {
 
     expect(await Promise.all([a, b])).toEqual([false, true]);
   });
+
+  it('logs out on the backend inside the Web Lock, then forgets the session', async () => {
+    const locks = new FakeLocks();
+    const session = configure(locks);
+    session.start(sessionFor('token-1'));
+
+    const leaving = session.logout();
+    await settle();
+    backend.expectOne('/api/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await leaving;
+
+    expect(locks.names).toEqual([REFRESH_LOCK]);
+    expect(session.isAuthenticated()).toBe(false);
+  });
+
+  it('forgets the session even when the logout call fails', async () => {
+    const session = configure(null);
+    session.start(sessionFor('token-1'));
+
+    const leaving = session.logout();
+    backend.expectOne('/api/auth/logout').error(new ProgressEvent('error'));
+    await expect(leaving).resolves.toBeUndefined();
+
+    expect(session.accessToken()).toBeNull();
+  });
 });

@@ -7,6 +7,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import { AuthSession } from './core/auth/auth-session';
 import { sessionFor } from './core/auth/auth-session.testing';
+import { LoginPage } from './features/accounts/login/login.page';
 import { RegisterPage } from './features/accounts/register/register.page';
 
 describe('routes', () => {
@@ -36,6 +37,25 @@ describe('routes', () => {
     const harness = await RouterTestingHarness.create();
 
     await harness.navigateByUrl('/register');
+
+    expect(TestBed.inject(Router).url).toBe('/me');
+  });
+
+  it('/login shows the login page to an anonymous visitor, with its returnUrl', async () => {
+    const harness = await RouterTestingHarness.create();
+
+    await harness.navigateByUrl('/login?returnUrl=%2Fme');
+    const page = harness.fixture.debugElement.query(By.directive(LoginPage))
+      .componentInstance as LoginPage;
+
+    expect(page.returnUrl()).toBe('/me');
+  });
+
+  it('/login sends a logged-in user to /me', async () => {
+    TestBed.inject(AuthSession).start(sessionFor('token'));
+    const harness = await RouterTestingHarness.create();
+
+    await harness.navigateByUrl('/login');
 
     expect(TestBed.inject(Router).url).toBe('/me');
   });
