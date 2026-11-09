@@ -35,6 +35,7 @@ Bump-e2e: 2
 
 ### Bug Fixes
 - Backend `400` and `500` Problem Details now always include `type` (`about:blank`), which the contract requires; Spring left it out (found by the contract response validator of #37) (#37)
+- Release tooling: back-merges into `dev` (test → dev, main → dev) keep `dev`'s project version, so an open milestone branch no longer conflicts with `dev` or loses its `X.Y.Z-a` version when `dev` is merged into it; a conflict on the version alone is resolved automatically; `--start-milestone` fast-forwards `dev` from `origin` first; `v0.2.0-a` back to `0.2.0-a` (#54)
 
 ### Deployment & Configuration
 - JWT signing key: `infra/secrets/jwt-private.pem` mounted read-only into the backend by `compose.yaml` (git-ignored, excluded from Docker build contexts); CI takes it from the `JWT_PRIVATE_KEY` repository secret, or generates a throw-away key on fork and Dependabot PRs; the backend refuses to start without a valid key and names the file. Key creation, CI secret and rotation procedure in `infra/README.md` (#37)

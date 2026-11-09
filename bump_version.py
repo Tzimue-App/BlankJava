@@ -48,6 +48,8 @@ if hasattr(sys.stderr, 'reconfigure'):
 # ──────────────────────────────────────────────
 
 PACKAGE_JSON = "package.json"
+# Files that hold the project version (the lock file only if there is one)
+VERSION_FILES = (PACKAGE_JSON, "package-lock.json")
 CHANGELOG_FILE = "CHANGELOG.md"
 
 VERSION_BLOCK_PATTERN = re.compile(
@@ -549,17 +551,47 @@ def git_push(branch, tag=None):
         run_command(f"git push origin refs/tags/{tag}:refs/tags/{tag}")
 
 
-def back_merge(source, target, tag):
+def keep_project_version(source, version, merged_cleanly):
+    """
+    Inside a merge stopped before its commit, puts the project version back to `version`.
+    A conflict limited to the version files is resolved with the source's files, then the
+    version is restored. Returns False if anything else conflicts.
+    """
+    conflicted = run_command("git diff --name-only --diff-filter=U", abort_on_error=False).splitlines()
+    if not merged_cleanly and (not conflicted or set(conflicted) - set(VERSION_FILES)):
+        return False
+    for path in conflicted:
+        run_command(f"git checkout refs/heads/{source} -- {path}")
+    run_command("git add " + " ".join(update_package_json_version(PACKAGE_JSON, version)))
+    return True
+
+
+def back_merge(source, target, tag, keep_version=False):
     """
     Merges source into target. On conflict, does not force anything: pushes a
     backmerge/<tag>-into-<target> branch and opens a pull request for a human.
+
+    With keep_version, target keeps its own project version (package.json and its lock
+    file); everything else is merged. dev uses it: it always carries the alpha of the last
+    milestone merged into it, so an open milestone branch never conflicts with dev on the
+    version line, nor gets its version overwritten by merging dev (issue #54).
     """
     print(f"🔄 Back-merge {source} → {target}...")
     run_command(f"git checkout {target}")
     run_command(f"git pull --ff-only origin refs/heads/{target}")
-    if command_succeeds(f'git merge refs/heads/{source} -m "chore: back-merge {source} into {target} [bump_version]"'):
+    message = f"chore: back-merge {source} into {target} [bump_version]"
+    if keep_version:
+        version = get_current_version()
+        merged = keep_project_version(
+            source, version, command_succeeds(f"git merge --no-ff --no-commit refs/heads/{source}")
+        )
+        if merged and command_succeeds("git rev-parse -q --verify MERGE_HEAD"):
+            run_command(f'git commit --no-edit -m "{message}"')
+    else:
+        merged = command_succeeds(f'git merge refs/heads/{source} -m "{message}"')
+    if merged:
         run_command(f"git push origin refs/heads/{target}:refs/heads/{target}")
-        print(f"   ✅ Back-merge {source} → {target} done")
+        print(f"   ✅ Back-merge {source} → {target} done" + (f" ({target} stays {version})" if keep_version else ""))
     else:
         run_command("git merge --abort", abort_on_error=False)
         branch = f"backmerge/{tag}-into-{target}"
@@ -592,6 +624,10 @@ def start_milestone(target, dry_run, push=True):
     branch = get_current_branch()
     if branch != "dev" and not dry_run:
         print(f"❌ Milestones start from 'dev'. Current branch: {branch}")
+        sys.exit(1)
+    # A stale local dev would start the milestone before the latest release (issue #54)
+    if branch == "dev" and push and not command_succeeds("git pull --ff-only origin refs/heads/dev"):
+        print("❌ Could not fast-forward dev from origin: local dev has diverged or origin is unreachable.")
         sys.exit(1)
 
     # The target is the next major, minor or patch of the current version. The current
@@ -778,11 +814,12 @@ def release(ci, dry_run):
     git_push(branch, tag)
     print(f"   ✅ Pushed to {branch}")
 
+    # dev keeps its alpha version; test takes the stable one (the next promotion replaces it)
     if branch == "test":
-        back_merge("test", "dev", tag)
+        back_merge("test", "dev", tag, keep_version=True)
     elif branch == "main":
         back_merge("main", "test", tag)
-        back_merge("main", "dev", tag)
+        back_merge("main", "dev", tag, keep_version=True)
 
     print(f"\n✅ Done: {tag}")
 
