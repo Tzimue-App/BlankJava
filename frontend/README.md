@@ -45,9 +45,12 @@ Code: `core/auth/` (`docs/technical_analysis.md` §5.2). A session is an access 
 
 ## Accounts pages
 
-Feature `features/accounts/` (lazy-loaded, for anonymous visitors: `anonymousGuard`).
+Feature `features/accounts/` (lazy-loaded, for anonymous visitors: `anonymousGuard` sends a logged-in user to `/me`).
 
 - `/register` (`RegisterPage`): the form checks the backend's rules before sending (`shared/validators/account-validators.ts`: same e-mail syntax, display name 2–50 and password 15–64 characters counted in code points, the password after NFKC). What only the server knows comes back as field errors and shows under the field: `email_taken`, `compromised_password`. Any other failure shows a banner with the request's trace id. On success the session opens (`AuthSession.start`) and the user goes to `returnUrl` if it is a path of this application (`return-url.ts`), else to `/me`.
+- `/login` (`LoginPage`): e-mail and password are only required, never checked against the policy, so a mismatch of any kind gets the same message _Invalid e-mail or password._ and never says which field was wrong. The password is cleared after a refusal. Other failures show the banner with the trace id. On success, same `returnUrl` rule as registration.
+- `returnUrl` (`return-url.ts`) is followed only if it starts with a single `/` (not `//` or `/\`) and still resolves to this application once a browser has cleaned it up (tabs and new lines removed, `..` resolved); else the user goes to `/me`.
+- _Log out_ (`layout/header`), shown while logged in: `AuthSession.logout()` revokes the refresh cookie (`POST /api/auth/logout`, inside the same Web Lock as refreshes), forgets the session even if the backend cannot be reached, then the user goes to `/login`.
 - Error messages are keyed by the contract's `FieldError` codes, so a client-side error and the same error from the server read the same.
 - Every field, button and error has a `data-testid` for the Selenium journeys (#45).
 

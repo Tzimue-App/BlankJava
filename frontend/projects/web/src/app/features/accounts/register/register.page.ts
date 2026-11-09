@@ -63,7 +63,7 @@ const MESSAGES: Record<Field, Record<string, string>> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule],
   templateUrl: './register.page.html',
-  styleUrl: './register.page.scss',
+  styleUrl: '../account-form.scss',
 })
 export class RegisterPage {
   private readonly api = inject(Api);

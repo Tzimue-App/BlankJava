@@ -14,7 +14,14 @@ describe('safeReturnUrl', () => {
     '//evil.example',
     '/\\evil.example',
     'javascript:alert(1)',
-  ])('ignores %s', (url) => {
+    '/\t/evil.example',
+    '/\n/evil.example',
+    '/\r\n/evil.example',
+  ])('ignores %j', (url) => {
     expect(safeReturnUrl(url)).toBeNull();
+  });
+
+  it('returns the path as the browser would resolve it', () => {
+    expect(safeReturnUrl('/me/../settings?a=1#top')).toBe('/settings?a=1#top');
   });
 });
