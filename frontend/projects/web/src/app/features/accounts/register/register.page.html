@@ -1,0 +1,105 @@
+<section aria-labelledby="register-title">
+  <h1 id="register-title" i18n="@@register.title">Create an account</h1>
+
+  @if (failure(); as failed) {
+    <div class="banner" role="alert" data-testid="register-error-banner">
+      <span i18n="@@register.failure"
+        >The account could not be created. Please try again later.</span
+      >
+      @if (failed.traceId) {
+        <span i18n="@@register.failureTrace">
+          Reference: <span class="trace" data-testid="register-trace-id">{{ failed.traceId }}</span>
+        </span>
+      }
+    </div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <mat-form-field>
+      <mat-label i18n="@@register.email.label">E-mail address</mat-label>
+      <input
+        matInput
+        formControlName="email"
+        type="email"
+        autocomplete="email"
+        data-testid="register-email"
+      />
+      @if (error('email'); as message) {
+        <mat-error data-testid="register-email-error">{{ message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label i18n="@@register.displayName.label">Display name</mat-label>
+      <input
+        matInput
+        formControlName="displayName"
+        autocomplete="nickname"
+        data-testid="register-display-name"
+      />
+      <mat-hint i18n="@@register.displayName.hint">How other people see you.</mat-hint>
+      @if (error('displayName'); as message) {
+        <mat-error data-testid="register-display-name-error">{{ message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="password-row">
+      <mat-form-field>
+        <mat-label i18n="@@register.password.label">Password</mat-label>
+        <input
+          matInput
+          formControlName="password"
+          [type]="passwordVisible() ? 'text' : 'password'"
+          autocomplete="new-password"
+          aria-describedby="register-password-count"
+          data-testid="register-password"
+        />
+        <mat-hint i18n="@@register.password.hint"
+          >At least 15 characters. A few unrelated words work well.</mat-hint
+        >
+        <mat-hint align="end" id="register-password-count" data-testid="register-password-count">
+          {{ passwordLength() }} / {{ passwordMax }}
+        </mat-hint>
+        @if (error('password'); as message) {
+          <mat-error data-testid="register-password-error">{{ message }}</mat-error>
+        }
+      </mat-form-field>
+      <button
+        mat-button
+        type="button"
+        (click)="togglePassword()"
+        [attr.aria-pressed]="passwordVisible()"
+        data-testid="register-password-toggle"
+      >
+        @if (passwordVisible()) {
+          <ng-container i18n="@@register.password.hide">Hide</ng-container>
+        } @else {
+          <ng-container i18n="@@register.password.show">Show</ng-container>
+        }
+      </button>
+    </div>
+
+    <mat-form-field>
+      <mat-label i18n="@@register.confirmation.label">Repeat the password</mat-label>
+      <input
+        matInput
+        formControlName="confirmation"
+        [type]="passwordVisible() ? 'text' : 'password'"
+        autocomplete="new-password"
+        data-testid="register-confirmation"
+      />
+      @if (error('confirmation'); as message) {
+        <mat-error data-testid="register-confirmation-error">{{ message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <button mat-flat-button type="submit" [disabled]="!canSubmit()" data-testid="register-submit">
+      <ng-container i18n="@@register.submit">Create my account</ng-container>
+    </button>
+  </form>
+
+  <p>
+    <ng-container i18n="@@register.haveAccount">Already registered?</ng-container>
+    <a routerLink="/login" data-testid="register-login-link" i18n="@@register.loginLink">Log in</a>
+  </p>
+</section>
