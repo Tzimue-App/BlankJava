@@ -17,12 +17,12 @@ describe('appConfig', () => {
     const http = TestBed.inject(HttpTestingController);
     const initStatus = TestBed.inject(ApplicationInitStatus);
 
-    http.expectOne('/config.json').flush({ release: '0.1.0-b' });
+    http.expectOne('/config.json').flush({ release: '0.2.0-beta' });
     http.expectOne('/api/auth/refresh').flush(null, { status: 401, statusText: 'Unauthorized' });
     await initStatus.donePromise;
 
     expect(initStatus.done).toBe(true);
-    expect(TestBed.inject(RuntimeConfigService).config().release).toBe('0.1.0-b');
+    expect(TestBed.inject(RuntimeConfigService).config().release).toBe('0.2.0-beta');
     http.verify();
   });
 

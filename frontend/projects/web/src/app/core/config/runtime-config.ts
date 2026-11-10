@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 
 /** Settings read at startup from `/config.json`, so one image runs in every environment. */
 export interface RuntimeConfig {
-  /** Project release of the deployed image, e.g. `0.1.0-b` (written from `APP_RELEASE`). */
+  /** Project release of the deployed image, e.g. `0.2.0-beta` (written from `APP_RELEASE`). */
   release: string;
 }
 

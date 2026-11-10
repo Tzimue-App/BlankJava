@@ -47,6 +47,7 @@ Bump-e2e: 2
 - Password hashing cost `blankjava.security.password.argon2.*` (defaults 19 MiB, 2 iterations, parallelism 1; how to tune it in `backend/README.md`) and refresh-token lifetime `blankjava.security.refresh-token.lifetime` (7 days); new dependency Bouncy Castle `bcprov-jdk18on` 1.86 (#29)
 - Nightly refresh-token purge (03:30, `blankjava.security.refresh-token.purge-cron`): deletes tokens expired or revoked for more than 7 days (`purge-after`); ShedLock 7.10.1 with the `shedlock` table of `V3__shedlock.sql` runs it on one instance; `blankjava.scheduling.enabled=false` turns scheduled jobs off (#30)
 - Backend tests: responses checked against `api/openapi.yaml` with `ContractValidation.matchesContract()` (swagger-request-validator 2.44.9) (#37)
+- Project version and tags spell out their stage: `X.Y.Z-alpha` (`dev`), `X.Y.Z-beta` (`test`), `X.Y.Z` (`main`) in the root `package.json` (never with a `v`), tags and GitHub releases `vX.Y.Z-alpha`, `vX.Y.Z-beta`, `vX.Y.Z`, Docker images tagged e.g. `0.2.0-beta` and built on `v*-beta` tags; component versions unchanged; milestone branches keep the name `vX.Y.Z-a`; the `v0.1.0-a`/`v0.1.0-b` tags and changelog blocks stay as they are and are still read (#54)
 
 ### ChangeLog
 

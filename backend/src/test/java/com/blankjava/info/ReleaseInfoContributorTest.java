@@ -18,21 +18,21 @@ class ReleaseInfoContributorTest {
         build.setProperty("version", "0.1.0");
         build.setProperty("api", "0.1.0");
 
-        Info info = contribute("0.1.0-b", new BuildProperties(build));
+        Info info = contribute("0.2.0-beta", new BuildProperties(build));
 
-        assertThat(info.getDetails()).containsEntry("release", "0.1.0-b").containsEntry("api", "0.1.0");
+        assertThat(info.getDetails()).containsEntry("release", "0.2.0-beta").containsEntry("api", "0.1.0");
     }
 
     @Test
     void reportsUnknownWhenBuildInfoIsMissing() {
-        Info info = contribute("0.1.0-b", null);
+        Info info = contribute("0.2.0-beta", null);
 
         assertThat(info.getDetails()).containsEntry("api", ReleaseInfoContributor.UNKNOWN);
     }
 
     @Test
     void reportsUnknownWhenBuildInfoHasNoContractVersion() {
-        Info info = contribute("0.1.0-b", new BuildProperties(new Properties()));
+        Info info = contribute("0.2.0-beta", new BuildProperties(new Properties()));
 
         assertThat(info.getDetails()).containsEntry("api", ReleaseInfoContributor.UNKNOWN);
     }

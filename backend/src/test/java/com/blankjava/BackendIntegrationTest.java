@@ -20,7 +20,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 /** Whole application against a real PostgreSQL (Testcontainers): run by {@code ./gradlew check}. */
 @Tag("integration")
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "blankjava.release=0.1.0-b")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "blankjava.release=0.2.0-beta")
 class BackendIntegrationTest {
 
     @Container
@@ -60,7 +60,7 @@ class BackendIntegrationTest {
         assertThat(response.body())
                 .contains("\"build\":")
                 .contains("\"version\":")
-                .contains("\"release\":\"0.1.0-b\"")
+                .contains("\"release\":\"0.2.0-beta\"")
                 .containsPattern("\"api\":\"\\d+\\.\\d+\\.\\d+\"");
     }
 

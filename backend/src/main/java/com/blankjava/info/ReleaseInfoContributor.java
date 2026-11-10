@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  *
  * <ul>
  *   <li>{@code release}: the project release the image belongs to ({@code APP_RELEASE}, set at
- *       image build, e.g. {@code 0.1.0-b});
+ *       image build, e.g. {@code 0.2.0-beta});
  *   <li>{@code api}: the API contract version the backend was generated from.
  * </ul>
  *
