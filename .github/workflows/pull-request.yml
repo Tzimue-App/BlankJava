@@ -26,9 +26,12 @@ concurrency:
   group: pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# dorny/test-reporter writes its reports to the job summary (use-actions-summary: true), not to
+# check runs: creating a check run then updating it at once sometimes got a 404 from GitHub, which
+# left the check pending forever (#59). Failed tests still fail the step (fail-on-error), so no
+# "checks: write".
 permissions:
   contents: read
-  checks: write
   pull-requests: write
 
 env:
@@ -116,7 +119,7 @@ jobs:
           name: Release script tests
           path: build/test-results/junit.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
 
       - name: Upload release script report
         id: upload
@@ -194,7 +197,7 @@ jobs:
           name: Backend tests
           path: backend/build/test-results/test/*.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
 
       - name: Backend integration tests report
         if: always()
@@ -203,7 +206,7 @@ jobs:
           name: Backend integration tests
           path: backend/build/test-results/integrationTest/*.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
           # Without --continue, a failing "test" task stops "check" before "integrationTest"
           # runs, so there is legitimately nothing to report yet; don't fail this step for that.
           fail-on-empty: false
@@ -276,7 +279,7 @@ jobs:
           name: Frontend tests
           path: frontend/test-results/junit.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
 
       # Vitest writes lcov paths relative to frontend/; diff-cover matches them against git paths
       # (frontend/...), so they are prefixed first, or every line would count as "no coverage data".

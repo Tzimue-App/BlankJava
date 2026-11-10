@@ -34,6 +34,7 @@ Bump-e2e: 2
 - Selenium `SmokeTest`: `/` now leads to the login page (#35), so the smoke journey checks that instead of the removed M0 home heading; `HomePage` replaced by `AppFrame` (#45)
 - Selenium suite: its HTTP client (test users, report header) trusts only the stack's certificate, given by `E2E_TLS_CERT` (the `certs` volume, mounted read-only into the `e2e` service), instead of accepting any certificate; hostname verification stays on (code scanning alert #3) (#51)
 - Backend `401`/`403` Problem Details from the security filter chain are built as a `ProblemDetail` and serialized by the application's Jackson mapper instead of a string template; same fields and values; `instance` is the request path as received, left out when it is not a valid URI reference (code scanning alert #4) (#52)
+- Backend log masking: the e-mail pattern is bounded to the RFC 5321 lengths (local part 64, domain 253), so masking a text is linear in its length instead of quadratic on a text without `@`; addresses within those limits are masked as before, a longer local part from its last 64 characters; the timing guard now uses a 100,000-character text (#59)
 
 ### Bug Fixes
 - Backend `400` and `500` Problem Details now always include `type` (`about:blank`), which the contract requires; Spring left it out (found by the contract response validator of #37) (#37)
@@ -48,6 +49,7 @@ Bump-e2e: 2
 - Nightly refresh-token purge (03:30, `blankjava.security.refresh-token.purge-cron`): deletes tokens expired or revoked for more than 7 days (`purge-after`); ShedLock 7.10.1 with the `shedlock` table of `V3__shedlock.sql` runs it on one instance; `blankjava.scheduling.enabled=false` turns scheduled jobs off (#30)
 - Backend tests: responses checked against `api/openapi.yaml` with `ContractValidation.matchesContract()` (swagger-request-validator 2.44.9) (#37)
 - Project version and tags spell out their stage: `X.Y.Z-alpha` (`dev`), `X.Y.Z-beta` (`test`), `X.Y.Z` (`main`) in the root `package.json` (never with a `v`), tags and GitHub releases `vX.Y.Z-alpha`, `vX.Y.Z-beta`, `vX.Y.Z`, Docker images tagged e.g. `0.2.0-beta` and built on `v*-beta` tags; component versions unchanged; milestone branches keep the name `vX.Y.Z-a`; the `v0.1.0-a`/`v0.1.0-b` tags and changelog blocks stay as they are and are still read (#54)
+- Push and pull request suites: `dorny/test-reporter` writes the backend, backend integration, frontend and release-script reports to the job summary instead of check runs, which sometimes stayed pending forever after a `404` from GitHub; failed tests still fail the job; `checks: write` permission removed (#59)
 
 ### ChangeLog
 
