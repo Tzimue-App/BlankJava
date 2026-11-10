@@ -8,12 +8,33 @@ _Description: Write the summary here..._
 One line per component: 0 = unchanged, 1 = major, 2 = minor, 3 = patch.
 A component whose directory changed must be bumped. Over a milestone, keep the most
 significant bump (a PR may raise a value, never lower it).
-The project version comes from the milestone branch (vX.Y.Z-a).
+The project version comes from the milestone branch (vX.Y.Z-a, project X.Y.Z-alpha).
 -->
-Bump-api: 2
-Bump-backend: 2
-Bump-frontend: 2
-Bump-e2e: 2
+Bump-api: 0
+Bump-backend: 0
+Bump-frontend: 0
+Bump-e2e: 0
+
+### Features
+
+### Patches
+
+### Bug Fixes
+
+### Deployment & Configuration
+
+### ChangeLog
+
+---
+
+## [v0.2.0-alpha] - 2026-11-10
+
+# blankjava - Alpha v0.2.0-alpha
+
+> [!WARNING]
+> **Status: Alpha.** Development build for internal integration testing.
+
+**Components:** api `0.2.0` (updated) · backend `0.2.0` (updated) · frontend `0.2.0` (updated) · e2e `0.2.0` (updated)
 
 ### Features
 - Accounts API contract: `register`, `login`, `refresh`, `logout` (`/auth/*`) and `getCurrentUser` (`GET /users/me`), with the refresh cookie as a `refreshCookie` security scheme, `Set-Cookie` and `Cache-Control: no-store` headers, field-level validation errors (`ValidationProblem`, codes `required`, `invalid_format`, `too_short`, `too_long`, `compromised_password`), `409` `email_taken`, `403` on a missing or foreign `Origin`, and an example for every response (#28)
@@ -50,8 +71,6 @@ Bump-e2e: 2
 - Backend tests: responses checked against `api/openapi.yaml` with `ContractValidation.matchesContract()` (swagger-request-validator 2.44.9) (#37)
 - Project version and tags spell out their stage: `X.Y.Z-alpha` (`dev`), `X.Y.Z-beta` (`test`), `X.Y.Z` (`main`) in the root `package.json` (never with a `v`), tags and GitHub releases `vX.Y.Z-alpha`, `vX.Y.Z-beta`, `vX.Y.Z`, Docker images tagged e.g. `0.2.0-beta` and built on `v*-beta` tags; component versions unchanged; milestone branches keep the name `vX.Y.Z-a`; the `v0.1.0-a`/`v0.1.0-b` tags and changelog blocks stay as they are and are still read (#54)
 - Push and pull request suites: `dorny/test-reporter` writes the backend, backend integration, frontend and release-script reports to the job summary instead of check runs, which sometimes stayed pending forever after a `404` from GitHub; failed tests still fail the job; `checks: write` permission removed (#59)
-
-### ChangeLog
 
 ---
 
