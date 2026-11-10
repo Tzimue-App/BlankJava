@@ -1,0 +1,79 @@
+<section aria-labelledby="login-title">
+  <h1 id="login-title" i18n="@@login.title">Log in</h1>
+
+  @if (rejected()) {
+    <div class="banner" role="alert" data-testid="login-rejected">
+      <span i18n="@@login.rejected">Invalid e-mail or password.</span>
+    </div>
+  }
+  @if (failure(); as failed) {
+    <div class="banner" role="alert" data-testid="login-error-banner">
+      <span i18n="@@login.failure">You could not be logged in. Please try again later.</span>
+      @if (failed.traceId) {
+        <span i18n="@@login.failureTrace">
+          Reference: <span class="trace" data-testid="login-trace-id">{{ failed.traceId }}</span>
+        </span>
+      }
+    </div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <mat-form-field>
+      <mat-label i18n="@@login.email.label">E-mail address</mat-label>
+      <input
+        matInput
+        formControlName="email"
+        type="email"
+        autocomplete="username"
+        data-testid="login-email"
+      />
+      @if (form.controls.email.hasError('required')) {
+        <mat-error data-testid="login-email-error" i18n="@@login.email.required"
+          >Enter your e-mail address.</mat-error
+        >
+      }
+    </mat-form-field>
+
+    <div class="password-row">
+      <mat-form-field>
+        <mat-label i18n="@@login.password.label">Password</mat-label>
+        <input
+          matInput
+          formControlName="password"
+          [type]="passwordVisible() ? 'text' : 'password'"
+          autocomplete="current-password"
+          data-testid="login-password"
+        />
+        @if (form.controls.password.hasError('required')) {
+          <mat-error data-testid="login-password-error" i18n="@@login.password.required"
+            >Enter your password.</mat-error
+          >
+        }
+      </mat-form-field>
+      <button
+        mat-button
+        type="button"
+        (click)="togglePassword()"
+        [attr.aria-pressed]="passwordVisible()"
+        data-testid="login-password-toggle"
+      >
+        @if (passwordVisible()) {
+          <ng-container i18n="@@login.password.hide">Hide</ng-container>
+        } @else {
+          <ng-container i18n="@@login.password.show">Show</ng-container>
+        }
+      </button>
+    </div>
+
+    <button mat-flat-button type="submit" [disabled]="!canSubmit()" data-testid="login-submit">
+      <ng-container i18n="@@login.submit">Log in</ng-container>
+    </button>
+  </form>
+
+  <p>
+    <ng-container i18n="@@login.noAccount">No account yet?</ng-container>
+    <a routerLink="/register" data-testid="login-register-link" i18n="@@login.registerLink"
+      >Create one</a
+    >
+  </p>
+</section>

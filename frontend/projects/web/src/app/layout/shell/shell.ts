@@ -1,17 +1,15 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { Footer } from '../footer/footer';
+import { Header } from '../header/header';
 
 /** Application frame: header, routed page, footer. Every route renders inside it. */
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatToolbarModule, RouterLink, RouterOutlet, Footer],
+  imports: [RouterOutlet, Header, Footer],
   template: `
-    <mat-toolbar class="header">
-      <a routerLink="/" class="brand" i18n="@@shell.brand">BlankJava</a>
-    </mat-toolbar>
+    <app-header />
     <main class="content">
       <router-outlet />
     </main>
@@ -22,10 +20,6 @@ import { Footer } from '../footer/footer';
       display: flex;
       flex-direction: column;
       min-height: 100vh;
-    }
-    .brand {
-      color: inherit;
-      text-decoration: none;
     }
     .content {
       flex: 1;

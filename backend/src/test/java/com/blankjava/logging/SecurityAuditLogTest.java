@@ -40,4 +40,21 @@ class SecurityAuditLogTest {
                     .doesNotContainKey("user.id");
         }
     }
+
+    @Test
+    void aFailureForAnEmailCarriesItMaskedOnly() {
+        try (CapturedLogs logs = new CapturedLogs(SecurityAuditLog.LOGGER_NAME)) {
+            audit.recordForEmail("auth.login.failed", Outcome.FAILURE, "jane.doe@example.com", "10.0.0.7");
+
+            ILoggingEvent event = logs.events().getFirst();
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(CapturedLogs.keyValues(event))
+                    .containsEntry("event.action", "auth.login.failed")
+                    .containsEntry("event.outcome", "failure")
+                    .containsEntry("user.email", "j***@example.com")
+                    .containsEntry("client.ip", "10.0.0.7")
+                    .doesNotContainKey("user.id");
+            assertThat(event.getFormattedMessage()).doesNotContain("jane");
+        }
+    }
 }

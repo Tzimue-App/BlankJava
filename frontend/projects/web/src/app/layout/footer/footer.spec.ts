@@ -22,7 +22,7 @@ describe('Footer', () => {
     http = TestBed.inject(HttpTestingController);
     const config = TestBed.inject(RuntimeConfigService);
     const loading = config.load();
-    http.expectOne('/config.json').flush({ release: '0.1.0-b' });
+    http.expectOne('/config.json').flush({ release: '0.2.0-beta' });
     await loading;
 
     fixture = TestBed.createComponent(Footer);
@@ -34,7 +34,7 @@ describe('Footer', () => {
   it('shows the release and the frontend version immediately', () => {
     http.expectOne('/actuator/info');
 
-    expect(text('version-release')).toBe('Release 0.1.0-b');
+    expect(text('version-release')).toBe('Release 0.2.0-beta');
     expect(text('version-frontend')).toBe(`Frontend ${FRONTEND_VERSION}`);
     expect(text('version-backend-loading')).toBe('Backend …');
   });

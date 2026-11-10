@@ -15,4 +15,7 @@ tests
 **/*.log
 .env
 .env.*
+# JWT signing keys: mounted at runtime, never in an image
+infra/secrets
+**/*.pem
 **/.angular

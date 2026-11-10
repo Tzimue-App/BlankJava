@@ -41,6 +41,28 @@ class AccessLogFilterTest {
     }
 
     @Test
+    void anAuthenticatedRequestCarriesItsUserIdAndAnAnonymousOneNone() throws Exception {
+        MockHttpServletRequest authenticated = new MockHttpServletRequest("GET", "/api/users/me");
+        try (CapturedLogs logs = new CapturedLogs(AccessLogFilter.LOGGER_NAME)) {
+            filter.doFilter(authenticated, new MockHttpServletResponse(), new MockFilterChain() {
+                @Override
+                public void doFilter(ServletRequest req, ServletResponse res) {
+                    // what UserIdFilter leaves behind in the security chain
+                    req.setAttribute(UserIdFilter.REQUEST_ATTRIBUTE, "7b2f4c1e-9a8d-4b6e-8f3a-2d1c0b9e8a7f");
+                }
+            });
+            filter.doFilter(
+                    new MockHttpServletRequest("POST", "/api/client-logs"),
+                    new MockHttpServletResponse(),
+                    new MockFilterChain());
+
+            assertThat(CapturedLogs.keyValues(logs.events().get(0)))
+                    .containsEntry("user.id", "7b2f4c1e-9a8d-4b6e-8f3a-2d1c0b9e8a7f");
+            assertThat(CapturedLogs.keyValues(logs.events().get(1))).doesNotContainKey("user.id");
+        }
+    }
+
+    @Test
     void logsTheRequestEvenWhenTheChainFails() {
         try (CapturedLogs logs = new CapturedLogs(AccessLogFilter.LOGGER_NAME)) {
             try {

@@ -5,23 +5,27 @@ bump_version.py — Milestones, version bumps and PR checks for this project.
 See docs/technical_analysis.md §8.
 
 Versions:
-    - Project: root package.json "version", one tag per stage and version:
-      X.Y.Z-a (milestone branch, tagged vX.Y.Z-a on dev) → X.Y.Z-b (test) → X.Y.Z (main).
+    - Project: root package.json "version" (never with a "v"), one tag per stage and version:
+      X.Y.Z-alpha (milestone branch, tagged vX.Y.Z-alpha on dev) → X.Y.Z-beta (test, tag
+      vX.Y.Z-beta) → X.Y.Z (main, tag vX.Y.Z).
       A version is released once per stage; a defect found later ships in the next version.
+      Releases before v0.2.0 used the short suffixes -a and -b: they are still read from tags
+      and CHANGELOG.md, never written (issue #54).
     - Components: one SemVer each, in the version file listed in the root package.json
       "components" field (gradle.properties, package.json or an OpenAPI .yaml).
 
 Branches:
     dev → vX.Y.Z-a (milestone) → <type>/<issue>-<slug> (one per issue)
     issue → vX.Y.Z-a → dev → test → main, each by pull request.
-    The milestone branch and the dev tag share the name vX.Y.Z-a, so every git command
-    here uses full refs (refs/heads/…, refs/tags/…).
+    The milestone branch keeps the short name vX.Y.Z-a; it is not a version. Releases
+    before v0.2.0 have tags of the same name, so every git command here uses full refs
+    (refs/heads/…, refs/tags/…).
 
 CHANGELOG.md [Unreleased] holds the release notes and one line per component:
     Bump-backend: 2     (0 = unchanged, 1 = major, 2 = minor, 3 = patch)
 
 Usage:
-    python bump_version.py --start-milestone 0.1.7          # Create milestone branch v0.1.7-a from dev
+    python bump_version.py --start-milestone 0.1.7          # Create milestone branch v0.1.7-a (0.1.7-alpha) from dev
     python bump_version.py --check origin/dev --head-ref v0.1.7-a   # Validate a PR (CI)
     python bump_version.py --ci                             # Release after a merge into dev/test/main (CI)
     python bump_version.py                                  # Same, interactive
@@ -48,6 +52,8 @@ if hasattr(sys.stderr, 'reconfigure'):
 # ──────────────────────────────────────────────
 
 PACKAGE_JSON = "package.json"
+# Files that hold the project version (the lock file only if there is one)
+VERSION_FILES = (PACKAGE_JSON, "package-lock.json")
 CHANGELOG_FILE = "CHANGELOG.md"
 
 VERSION_BLOCK_PATTERN = re.compile(
@@ -55,7 +61,11 @@ VERSION_BLOCK_PATTERN = re.compile(
     re.DOTALL
 )
 
-PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(a|b))?$")
+PROJECT_VERSION_PATTERN = re.compile(r"^v?(\d+\.\d+\.\d+)(?:-(alpha|beta|a|b))?$")
+ALPHA = "alpha"
+BETA = "beta"
+# Short suffixes of the releases before v0.2.0: read from history, never written (issue #54)
+LEGACY_STAGES = {"a": ALPHA, "b": BETA}
 MILESTONE_BRANCH_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)-a$")
 COMPONENT_BUMP_PATTERN = re.compile(r"^\s*bump-([\w\-]+)\s*:\s*\[?(\d)\]?", re.IGNORECASE | re.MULTILINE)
 # Each line skipped inside "info:" starts with exactly one blank, so it can only be matched one
@@ -72,8 +82,8 @@ BUMP_LABELS = {0: "Unchanged", 1: "Major", 2: "Minor", 3: "Patch"}
 
 # Release branch -> stage of the version it produces
 BRANCH_STAGE_MAP = {
-    "dev": "a",
-    "test": "b",
+    "dev": ALPHA,
+    "test": BETA,
     "main": None,
 }
 
@@ -96,7 +106,7 @@ _Description: Write the summary here..._
 One line per component: 0 = unchanged, 1 = major, 2 = minor, 3 = patch.
 A component whose directory changed must be bumped. Over a milestone, keep the most
 significant bump (a PR may raise a value, never lower it).
-The project version comes from the milestone branch (vX.Y.Z-a).
+The project version comes from the milestone branch (vX.Y.Z-a, project X.Y.Z-alpha).
 -->
 {component_lines}
 ### Features
@@ -183,12 +193,14 @@ def branch_name(ref):
 # ──────────────────────────────────────────────
 
 def parse_project_version(version):
-    """Returns (base, stage) for X.Y.Z, X.Y.Z-a or X.Y.Z-b; stage is 'a', 'b' or None."""
+    """Returns (base, stage) for X.Y.Z, X.Y.Z-alpha or X.Y.Z-beta, with or without the 'v' of a
+    tag; stage is 'alpha', 'beta' or None. The legacy -a and -b read as alpha and beta."""
     match = PROJECT_VERSION_PATTERN.match(version or "")
     if not match:
-        print(f"❌ Unrecognised project version: {version} (expected X.Y.Z, X.Y.Z-a or X.Y.Z-b)")
+        print(f"❌ Unrecognised project version: {version} (expected X.Y.Z, X.Y.Z-alpha or X.Y.Z-beta)")
         sys.exit(1)
-    return match.group(1), match.group(2)
+    stage = match.group(2)
+    return match.group(1), LEGACY_STAGES.get(stage, stage)
 
 
 def get_current_version():
@@ -197,7 +209,10 @@ def get_current_version():
     if not version:
         print(f"❌ Could not find version in {PACKAGE_JSON}")
         sys.exit(1)
-    return version.lstrip("v")
+    if version.startswith("v"):
+        print(f"❌ The project version in {PACKAGE_JSON} is {version}: write it without 'v' (only tags have one).")
+        sys.exit(1)
+    return version
 
 
 def update_package_json_version(path, new_version):
@@ -341,6 +356,12 @@ def tag_exists(tag):
     return command_succeeds(f"git rev-parse --verify --quiet refs/tags/{tag}")
 
 
+def stage_released(base, stage):
+    """True if X.Y.Z `base` was already released at `stage`, under its tag or its legacy one."""
+    legacy = next((short for short, name in LEGACY_STAGES.items() if name == stage), None)
+    return tag_exists(f"v{base}-{stage}") or (legacy is not None and tag_exists(f"v{base}-{legacy}"))
+
+
 def previous_release_base(ref="HEAD"):
     """Returns the X.Y.Z base of the latest version tag reachable from ref, or 0.0.0."""
     tag = run_command(f'git describe --tags --abbrev=0 --match "v[0-9]*" {ref}', abort_on_error=False)
@@ -393,15 +414,15 @@ def validate_bumps(component_bumps, components, changed_components=(), base_bump
 def get_stage_name(version):
     """Returns the human-readable stage name."""
     _, stage = parse_project_version(version)
-    return {"a": "Alpha", "b": "Beta"}.get(stage, "Stable")
+    return {ALPHA: "Alpha", BETA: "Beta"}.get(stage, "Stable")
 
 
 def get_status_alert(version):
     """Returns the Markdown alert for the release notes."""
     _, stage = parse_project_version(version)
-    if stage == "a":
+    if stage == ALPHA:
         return "> [!WARNING]\n> **Status: Alpha.** Development build for internal integration testing."
-    if stage == "b":
+    if stage == BETA:
         return "> [!IMPORTANT]\n> **Status: Beta.** Stabilised test build."
     return "> [!TIP]\n> **Status: Stable.** Completed milestone release."
 
@@ -479,8 +500,9 @@ def parse_sections(block_body):
 def aggregate_alpha_blocks(tag, stop_stages):
     """
     Inserts at the top a block for `tag` that merges every Alpha block written since
-    the last block whose stage is in stop_stages ('b'/stable for a beta, stable for a
-    stable release). Beta (-b) blocks in between are skipped: they repeat their alphas.
+    the last block whose stage is in stop_stages (beta/stable for a beta, stable for a
+    stable release). Beta blocks in between are skipped: they repeat their alphas. Legacy
+    -a/-b blocks count as alpha/beta.
     The original blocks stay untouched below (history is preserved).
     """
     content = read_file(CHANGELOG_FILE)
@@ -490,7 +512,7 @@ def aggregate_alpha_blocks(tag, stop_stages):
         stage = parse_project_version(b.group(1))[1]
         if stage in stop_stages:
             break
-        if stage == "a":
+        if stage == ALPHA:
             consumed_blocks.append(b)
 
     # Merge the sections, oldest to newest (chronological order)
@@ -549,17 +571,47 @@ def git_push(branch, tag=None):
         run_command(f"git push origin refs/tags/{tag}:refs/tags/{tag}")
 
 
-def back_merge(source, target, tag):
+def keep_project_version(source, version, merged_cleanly):
+    """
+    Inside a merge stopped before its commit, puts the project version back to `version`.
+    A conflict limited to the version files is resolved with the source's files, then the
+    version is restored. Returns False if anything else conflicts.
+    """
+    conflicted = run_command("git diff --name-only --diff-filter=U", abort_on_error=False).splitlines()
+    if not merged_cleanly and (not conflicted or set(conflicted) - set(VERSION_FILES)):
+        return False
+    for path in conflicted:
+        run_command(f"git checkout refs/heads/{source} -- {path}")
+    run_command("git add " + " ".join(update_package_json_version(PACKAGE_JSON, version)))
+    return True
+
+
+def back_merge(source, target, tag, keep_version=False):
     """
     Merges source into target. On conflict, does not force anything: pushes a
     backmerge/<tag>-into-<target> branch and opens a pull request for a human.
+
+    With keep_version, target keeps its own project version (package.json and its lock
+    file); everything else is merged. dev uses it: it always carries the alpha of the last
+    milestone merged into it, so an open milestone branch never conflicts with dev on the
+    version line, nor gets its version overwritten by merging dev (issue #54).
     """
     print(f"🔄 Back-merge {source} → {target}...")
     run_command(f"git checkout {target}")
     run_command(f"git pull --ff-only origin refs/heads/{target}")
-    if command_succeeds(f'git merge refs/heads/{source} -m "chore: back-merge {source} into {target} [bump_version]"'):
+    message = f"chore: back-merge {source} into {target} [bump_version]"
+    if keep_version:
+        version = get_current_version()
+        merged = keep_project_version(
+            source, version, command_succeeds(f"git merge --no-ff --no-commit refs/heads/{source}")
+        )
+        if merged and command_succeeds("git rev-parse -q --verify MERGE_HEAD"):
+            run_command(f'git commit --no-edit -m "{message}"')
+    else:
+        merged = command_succeeds(f'git merge refs/heads/{source} -m "{message}"')
+    if merged:
         run_command(f"git push origin refs/heads/{target}:refs/heads/{target}")
-        print(f"   ✅ Back-merge {source} → {target} done")
+        print(f"   ✅ Back-merge {source} → {target} done" + (f" ({target} stays {version})" if keep_version else ""))
     else:
         run_command("git merge --abort", abort_on_error=False)
         branch = f"backmerge/{tag}-into-{target}"
@@ -583,7 +635,7 @@ def back_merge(source, target, tag):
 # ──────────────────────────────────────────────
 
 def start_milestone(target, dry_run, push=True):
-    """Creates the milestone branch vTARGET-a from dev with the project at TARGET-a."""
+    """Creates the milestone branch vTARGET-a from dev with the project at TARGET-alpha."""
     target = target.lstrip("v")
     if not re.match(r"^\d+\.\d+\.\d+$", target):
         print(f"❌ Milestone version must be X.Y.Z, got {target}")
@@ -593,12 +645,16 @@ def start_milestone(target, dry_run, push=True):
     if branch != "dev" and not dry_run:
         print(f"❌ Milestones start from 'dev'. Current branch: {branch}")
         sys.exit(1)
+    # A stale local dev would start the milestone before the latest release (issue #54)
+    if branch == "dev" and push and not command_succeeds("git pull --ff-only origin refs/heads/dev"):
+        print("❌ Could not fast-forward dev from origin: local dev has diverged or origin is unreachable.")
+        sys.exit(1)
 
     # The target is the next major, minor or patch of the current version. The current
     # version itself is only allowed again if it was never released (abandoned milestone).
     current_base = parse_project_version(get_current_version())[0]
     bump = bump_type_between(current_base, target)
-    if bump is None or tag_exists(f"v{target}-a"):
+    if bump is None or stage_released(target, ALPHA):
         allowed = [bump_base_version(current_base, b) for b in (1, 2, 3)]
         print(f"❌ v{target} cannot start after {current_base} (already released or not the next version). "
               f"Allowed: {', '.join(allowed)}")
@@ -611,13 +667,13 @@ def start_milestone(target, dry_run, push=True):
         sys.exit(1)
 
     kind = BUMP_LABELS[bump].lower() if bump else "restart of an unreleased version"
-    print(f"🏁 Milestone v{target} ({kind}) → branch {milestone_branch}, project {target}-a")
+    print(f"🏁 Milestone v{target} ({kind}) → branch {milestone_branch}, project {target}-{ALPHA}")
     if dry_run:
         print("\n🔍 Dry-run mode — no changes applied.")
         return
 
     run_command(f"git checkout -b {milestone_branch}")
-    files = update_package_json_version(PACKAGE_JSON, f"{target}-a")
+    files = update_package_json_version(PACKAGE_JSON, f"{target}-{ALPHA}")
     if ensure_unreleased_section(get_components()):
         files.append(CHANGELOG_FILE)
     git_commit(f"chore(release): start milestone v{target} [bump_version]", files)
@@ -656,15 +712,15 @@ def check(base_ref, head_ref=None):
         base_changelog = run_command(f"git show {base_ref}:{CHANGELOG_FILE}", abort_on_error=False)
         base_bumps = extract_component_bumps(base_changelog) or {}
 
-        # 2. Project version of the milestone: X.Y.Z-a, matching the branch, not released yet
+        # 2. Project version of the milestone: X.Y.Z-alpha, matching the branch, not released yet
         version = get_current_version()
         target, stage = parse_project_version(version)
         project_bump = None
-        if stage != "a":
-            errors.append(f"Project version is {version}; a milestone branch must carry X.Y.Z-a "
+        if version != f"{target}-{ALPHA}":
+            errors.append(f"Project version is {version}; a milestone branch must carry X.Y.Z-{ALPHA} "
                           f"(use --start-milestone).")
-        elif tag_exists(f"v{target}-a"):
-            errors.append(f"v{target}-a is already released: start a new milestone with the next version.")
+        elif stage_released(target, ALPHA):
+            errors.append(f"v{target}-{ALPHA} is already released: start a new milestone with the next version.")
         else:
             branch_for_version = head if base == "dev" else base
             branch_match = MILESTONE_BRANCH_PATTERN.match(branch_for_version or "")
@@ -694,9 +750,9 @@ def check(base_ref, head_ref=None):
 def release(ci, dry_run):
     """
     Releases after a merge:
-        dev  : X.Y.Z-a (from the milestone) → tag vX.Y.Z-a, component bumps applied
-        test : X.Y.Z-a → X.Y.Z-b, tag vX.Y.Z-b
-        main : X.Y.Z-b → X.Y.Z,   tag vX.Y.Z
+        dev  : X.Y.Z-alpha (from the milestone) → tag vX.Y.Z-alpha, component bumps applied
+        test : X.Y.Z-alpha → X.Y.Z-beta, tag vX.Y.Z-beta
+        main : X.Y.Z-beta  → X.Y.Z,      tag vX.Y.Z
     """
     print(f"🚀 {get_project_name()} — Release")
     print("=" * 40)
@@ -719,11 +775,12 @@ def release(ci, dry_run):
         print(f"   {name}: {version}")
 
     # What was merged decides what is released; anything else is a no-op
-    expected_stage = {"dev": "a", "test": "a", "main": "b"}[branch]
+    expected_stage = {"dev": ALPHA, "test": ALPHA, "main": BETA}[branch]
     new_stage = BRANCH_STAGE_MAP[branch]
     new_version = f"{base}-{new_stage}" if new_stage else base
     tag = f"v{new_version}"
-    if stage != expected_stage or tag_exists(tag) or (branch == "test" and not tag_exists(f"v{base}-a")):
+    already_released = stage_released(base, new_stage) if new_stage else tag_exists(tag)
+    if stage != expected_stage or already_released or (branch == "test" and not stage_released(base, ALPHA)):
         print(f"ℹ️  {current} is not a version to release from {branch} — nothing to do.")
         return
 
@@ -762,7 +819,7 @@ def release(ci, dry_run):
     if branch == "dev":
         freeze_unreleased(tag, format_components_line(get_component_versions(components), component_updates))
     elif branch == "test":
-        aggregate_alpha_blocks(tag, stop_stages=("b", None))
+        aggregate_alpha_blocks(tag, stop_stages=(BETA, None))
     else:
         aggregate_alpha_blocks(tag, stop_stages=(None,))
     changed_files.append(CHANGELOG_FILE)
@@ -778,11 +835,12 @@ def release(ci, dry_run):
     git_push(branch, tag)
     print(f"   ✅ Pushed to {branch}")
 
+    # dev keeps its alpha version; test takes the stable one (the next promotion replaces it)
     if branch == "test":
-        back_merge("test", "dev", tag)
+        back_merge("test", "dev", tag, keep_version=True)
     elif branch == "main":
         back_merge("main", "test", tag)
-        back_merge("main", "dev", tag)
+        back_merge("main", "dev", tag, keep_version=True)
 
     print(f"\n✅ Done: {tag}")
 

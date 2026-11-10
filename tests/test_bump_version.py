@@ -112,11 +112,16 @@ class OtherVersionFilesTest(unittest.TestCase):
 class ProjectVersionTest(unittest.TestCase):
     def test_accepts_only_the_three_release_forms(self):
         self.assertEqual(bv.parse_project_version("0.1.7"), ("0.1.7", None))
-        self.assertEqual(bv.parse_project_version("0.1.7-a"), ("0.1.7", "a"))
-        self.assertEqual(bv.parse_project_version("v0.1.7-b"), ("0.1.7", "b"))
+        self.assertEqual(bv.parse_project_version("0.1.7-alpha"), ("0.1.7", "alpha"))
+        self.assertEqual(bv.parse_project_version("v0.1.7-beta"), ("0.1.7", "beta"))
+
+    def test_reads_the_short_suffixes_of_old_releases(self):
+        # Tags and CHANGELOG.md blocks before v0.2.0 (issue #54)
+        self.assertEqual(bv.parse_project_version("v0.1.0-a"), ("0.1.0", "alpha"))
+        self.assertEqual(bv.parse_project_version("0.1.0-b"), ("0.1.0", "beta"))
 
     def test_rejects_other_forms(self):
-        for version in ("0.1.7-alpha.1", "0.1.7-beta.1", "0.1.7-c", "0.1", "latest"):
+        for version in ("0.1.7-alpha.1", "0.1.7-beta.1", "0.1.7-c", "0.1.7-rc", "0.1.7-alph", "0.1", "latest"):
             with self.subTest(version), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     bv.parse_project_version(version)
@@ -130,6 +135,129 @@ class ProjectVersionTest(unittest.TestCase):
         self.assertIsNone(bv.bump_type_between("0.1.7", "0.3.0"))
 
 
+class ProjectVersionFileTest(unittest.TestCase):
+    """The project version in the root package.json never has a 'v' (issue #54)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+
+    def tearDown(self):
+        os.chdir(self.cwd)
+        self.tmp.cleanup()
+
+    def test_reads_the_version(self):
+        write("package.json", '{"name": "x", "version": "0.2.0-alpha"}\n')
+        self.assertEqual(bv.get_current_version(), "0.2.0-alpha")
+
+    def test_refuses_a_version_with_a_v(self):
+        write("package.json", '{"name": "x", "version": "v0.2.0-alpha"}\n')
+        with contextlib.redirect_stdout(io.StringIO()) as out, self.assertRaises(SystemExit):
+            bv.get_current_version()
+        self.assertIn("without 'v'", out.getvalue())
+
+
+class StageReleasedTest(unittest.TestCase):
+    """A stage counts as released under its tag or the tag of the old short form."""
+
+    def setUp(self):
+        self.real_tag_exists = bv.tag_exists
+        self.tags = {"v0.1.0-a", "v0.1.0-b", "v0.2.0-alpha"}
+        bv.tag_exists = lambda tag: tag in self.tags
+
+    def tearDown(self):
+        bv.tag_exists = self.real_tag_exists
+
+    def test_new_and_legacy_tags(self):
+        self.assertTrue(bv.stage_released("0.1.0", "alpha"))
+        self.assertTrue(bv.stage_released("0.1.0", "beta"))
+        self.assertTrue(bv.stage_released("0.2.0", "alpha"))
+        self.assertFalse(bv.stage_released("0.2.0", "beta"))
+        self.assertFalse(bv.stage_released("0.3.0", "alpha"))
+
+
+class PromotionDryRunTest(unittest.TestCase):
+    """What a merge into dev, test or main releases, with old and new tags around (issue #54)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        self.real_branch = bv.get_current_branch
+        self.real_tag_exists = bv.tag_exists
+        self.tags = set()
+        bv.tag_exists = lambda tag: tag in self.tags
+
+    def tearDown(self):
+        bv.get_current_branch = self.real_branch
+        bv.tag_exists = self.real_tag_exists
+        os.chdir(self.cwd)
+        self.tmp.cleanup()
+
+    def preview(self, branch, version):
+        write("package.json", json.dumps({"name": "x", "version": version, "components": {}}) + "\n")
+        write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n---\n")
+        bv.get_current_branch = lambda: branch
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            bv.release(ci=True, dry_run=True)
+        return out.getvalue()
+
+    def test_dev_releases_the_milestone_alpha(self):
+        self.assertIn("New version: 0.2.0-alpha (Alpha)", self.preview("dev", "0.2.0-alpha"))
+
+    def test_test_promotes_an_alpha_to_a_beta(self):
+        self.tags = {"v0.2.0-alpha"}
+        self.assertIn("New version: 0.2.0-beta (Beta)", self.preview("test", "0.2.0-alpha"))
+
+    def test_main_promotes_an_old_short_beta_to_stable(self):
+        # test still carries 0.1.0-b, released before the long suffixes
+        self.tags = {"v0.1.0-a", "v0.1.0-b"}
+        self.assertIn("New version: 0.1.0 (Stable)", self.preview("main", "0.1.0-b"))
+
+    def test_a_stage_released_under_its_old_tag_is_not_released_again(self):
+        self.tags = {"v0.1.0-a", "v0.1.0-b"}
+        self.assertIn("nothing to do", self.preview("test", "0.1.0-a"))
+
+
+class AggregateAlphaBlocksTest(unittest.TestCase):
+    """A beta gathers the alphas since the last beta, whatever form their headings have."""
+
+    CHANGELOG = (
+        "# Changelog\n\n## [Unreleased]\n\n---\n"
+        "## [v0.2.0-alpha] - 2026-11-10\n\n### Features\n- New alpha feature\n\n---\n"
+        "## [v0.1.0-b] - 2026-11-01\n\n### Features\n- Old feature\n\n---\n"
+        "## [v0.1.0-a] - 2026-10-30\n\n### Features\n- Old feature\n\n---\n"
+    )
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        write("package.json", json.dumps({"name": "x", "version": "0.2.0-alpha", "components": {}}) + "\n")
+        write("CHANGELOG.md", self.CHANGELOG)
+
+    def tearDown(self):
+        os.chdir(self.cwd)
+        self.tmp.cleanup()
+
+    def test_a_beta_stops_at_the_previous_short_beta(self):
+        bv.aggregate_alpha_blocks("v0.2.0-beta", stop_stages=(bv.BETA, None))
+        content = read("CHANGELOG.md")
+        block = content[content.index("## [v0.2.0-beta]"):content.index("## [v0.2.0-alpha]")]
+        self.assertIn("# x - Beta v0.2.0-beta", block)
+        self.assertIn("- New alpha feature", block)
+        self.assertNotIn("Old feature", block)
+
+    def test_a_stable_release_gathers_the_short_alphas_too(self):
+        bv.aggregate_alpha_blocks("v0.2.0", stop_stages=(None,))
+        content = read("CHANGELOG.md")
+        block = content[content.index("## [v0.2.0]"):content.index("## [v0.2.0-alpha]")]
+        self.assertIn("- New alpha feature", block)
+        self.assertIn("- Old feature", block)
+
+
 class ReleaseDryRunTest(unittest.TestCase):
     """`python bump_version.py --dry-run` on an issue or milestone branch (issue #2)."""
 
@@ -138,7 +266,7 @@ class ReleaseDryRunTest(unittest.TestCase):
         self.cwd = os.getcwd()
         os.chdir(self.tmp.name)
         os.mkdir("api")
-        write("package.json", json.dumps({"name": "blankjava", "version": "0.1.0-a",
+        write("package.json", json.dumps({"name": "blankjava", "version": "0.1.0-alpha",
                                           "components": {"api": "api/openapi.yaml"}}, indent=2) + "\n")
         write("api/openapi.yaml", "openapi: 3.1.1\ninfo:\n  title: X\n  version: 0.0.0\npaths: {}\n")
         write("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\nBump-api: 2\n\n### Features\n- Contract\n\n---\n")
@@ -158,7 +286,7 @@ class ReleaseDryRunTest(unittest.TestCase):
         self.assertIn("previewing a merge into dev", text)
         self.assertIn("api: 0.0.0", text)
         self.assertIn("api: 0.0.0 → 0.1.0 (Minor)", text)
-        self.assertIn("New version: 0.1.0-a", text)
+        self.assertIn("New version: 0.1.0-alpha", text)
         # Nothing written
         self.assertIn("version: 0.0.0", read("api/openapi.yaml"))
 
@@ -181,6 +309,109 @@ class ChangelogBumpsTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             errors = bv.validate_bumps({"api": 3}, components, base_bumps={"api": 2})
         self.assertTrue(any("cannot be lowered" in e for e in errors), errors)
+
+
+class BackMergeTest(unittest.TestCase):
+    """
+    Back-merges into dev keep dev's project version (issue #54), on a real repository with a
+    bare 'origin'. Before the fix, test → dev brought 0.1.0-b into dev, and merging dev into
+    the open milestone branch v0.2.0-a replaced its version.
+    """
+
+    GIT_ENV = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_AUTHOR_NAME": "t",
+               "GIT_AUTHOR_EMAIL": "t@example.test", "GIT_COMMITTER_NAME": "t",
+               "GIT_COMMITTER_EMAIL": "t@example.test"}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = os.getcwd()
+        # Isolated from the machine's Git configuration (autocrlf, signing, default branch…)
+        self.saved_env = {k: os.environ.get(k) for k in self.GIT_ENV}
+        os.environ.update(self.GIT_ENV)
+        self.real_which = bv.shutil.which
+        bv.shutil.which = lambda name: None  # never open a real pull request
+        origin = os.path.join(self.tmp.name, "origin.git")
+        bv.run_command(f'git init -q --bare "{origin}"')
+        os.chdir(self.tmp.name)
+        bv.run_command(f'git clone -q "{origin}" work')
+        os.chdir("work")
+        # dev released v0.1.0-a, test was promoted from it
+        self.commit("dev", version="0.1.0-a", changelog="## [v0.1.0-a]\n", new_branch=True)
+        bv.run_command("git branch test")
+        bv.run_command("git push -q origin refs/heads/dev refs/heads/test")
+
+    def tearDown(self):
+        bv.shutil.which = self.real_which
+        os.chdir(self.cwd)
+        for key, value in self.saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        self.tmp.cleanup()
+
+    def commit(self, branch, version=None, changelog=None, other=None, new_branch=False):
+        bv.run_command(f"git checkout -q {'-b ' if new_branch else ''}{branch}")
+        if version:
+            write("package.json", json.dumps({"name": "x", "version": version}, indent=2) + "\n")
+        if changelog:
+            write("CHANGELOG.md", changelog)
+        if other:
+            write("other.txt", other)
+        bv.run_command("git add -A")
+        bv.run_command(f'git commit -q -m "{branch} {version or other or "changelog"}"')
+
+    def release_test(self, other=None):
+        """test releases v0.1.0-b, then back-merges into dev, as bump_version.py does."""
+        self.commit("test", version="0.1.0-b", changelog="## [v0.1.0-b]\n## [v0.1.0-a]\n", other=other)
+        bv.run_command("git push -q origin refs/heads/test")
+        with contextlib.redirect_stdout(io.StringIO()):
+            bv.back_merge("test", "dev", "v0.1.0-b", keep_version=True)
+
+    def origin_file(self, branch, path):
+        bv.run_command("git fetch -q origin")
+        return bv.run_command(f"git show origin/{branch}:{path}")
+
+    def origin_version(self, branch):
+        return json.loads(self.origin_file(branch, "package.json"))["version"]
+
+    def test_dev_keeps_its_version_and_gets_the_rest(self):
+        self.release_test()
+        self.assertEqual(self.origin_version("dev"), "0.1.0-a")
+        self.assertIn("v0.1.0-b", self.origin_file("dev", "CHANGELOG.md"))
+
+    def test_a_conflict_on_the_version_only_is_resolved_for_dev(self):
+        # dev moved on (the next milestone was merged) before test released
+        self.commit("dev", version="0.2.0-a")
+        bv.run_command("git push -q origin refs/heads/dev")
+        self.release_test()
+        self.assertEqual(self.origin_version("dev"), "0.2.0-a")
+        self.assertIn("v0.1.0-b", self.origin_file("dev", "CHANGELOG.md"))
+
+    def test_an_open_milestone_merges_dev_without_losing_its_version(self):
+        self.commit("v0.2.0-a", version="0.2.0-a", new_branch=True)
+        self.release_test()
+        bv.run_command("git checkout -q v0.2.0-a")
+        bv.run_command("git merge -q --no-edit origin/dev")
+        self.assertEqual(bv.get_current_version(), "0.2.0-a")
+        self.assertIn("v0.1.0-b", read("CHANGELOG.md"))
+
+    def test_any_other_conflict_is_left_to_a_pull_request(self):
+        self.commit("dev", other="dev side")
+        bv.run_command("git push -q origin refs/heads/dev")
+        dev_before = bv.run_command("git rev-parse origin/dev")
+        self.release_test(other="test side")
+        bv.run_command("git fetch -q origin")
+        self.assertEqual(bv.run_command("git rev-parse origin/dev"), dev_before)
+        self.assertTrue(bv.run_command("git ls-remote --heads origin refs/heads/backmerge/v0.1.0-b-into-dev"))
+        self.assertFalse(bv.command_succeeds("git rev-parse -q --verify MERGE_HEAD"))
+
+    def test_main_into_test_still_takes_the_stable_version(self):
+        self.commit("main", version="0.1.0", new_branch=True)
+        bv.run_command("git push -q origin refs/heads/main")
+        with contextlib.redirect_stdout(io.StringIO()):
+            bv.back_merge("main", "test", "v0.1.0")
+        self.assertEqual(self.origin_version("test"), "0.1.0")
 
 
 if __name__ == "__main__":

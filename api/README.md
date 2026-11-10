@@ -44,17 +44,51 @@ Enforced by `.spectral.yaml`, on top of the `spectral:oas` recommended rules:
 - every operation has a unique `operationId` (it becomes the generated method name) and a tag declared under `tags`;
 - every operation documents a `default` response, and every error response uses `application/problem+json` with the shared `Problem` schema (RFC 9457, with `traceId`);
 - schema property names are `camelCase`;
+- no schema reachable from a `2xx` response has a property named `password`, `passwordHash`, `hash` or `refreshToken` (`blankjava-no-secret-in-responses`);
+- every component is referenced (`oas3-unused-component`): remove a shared building block once nothing uses it;
 - paths are lower-case, nouns, plural for collections (`/users/me`, `/auth/login`). Spectral doesn't check this; reviewers do.
 
 Shared building blocks in `components`:
 
 | Component | Use |
 |---|---|
-| `schemas/Problem` | Body of every error response |
-| `responses/BadRequest`, `Unauthorized`, `NotFound`, `Conflict`, `InternalError` | Reuse with `$ref` instead of redefining errors |
-| `securitySchemes/bearerAuth` | `security: [{ bearerAuth: [] }]` on protected operations |
+| `schemas/Problem` | Body of every error response; optional `code` for errors the client handles specifically (`email_taken`) |
+| `schemas/ValidationProblem`, `FieldError` | `400` listing each invalid field with a stable `code` |
+| `responses/BadRequest`, `ValidationFailed`, `Unauthorized`, `Forbidden`, `PayloadTooLarge`, `InternalError` | Reuse with `$ref` instead of redefining errors |
+| `headers/SetRefreshCookie`, `ClearRefreshCookie`, `CacheControlNoStore`, `WwwAuthenticateBearer` | Response headers of the session operations |
+| `securitySchemes/bearerAuth` | `security: [{ bearerAuth: [] }]` on operations that need a logged-in user |
+| `securitySchemes/refreshCookie` | `security: [{ refreshCookie: [] }]` on operations that read the refresh cookie (`refresh`, `logout`) |
 
-`oas3-unused-component` is disabled while the contract has no operation. Re-enable it with the first endpoint (#6 adds `POST /client-logs`).
+Every new operation declares `security` explicitly: `[]` when it is public.
+
+## Accounts API
+
+The `auth` and `users` operations (`register`, `login`, `refresh`, `logout`, `getCurrentUser`). Their security model, as the contract describes it:
+
+| Operation | `security` | Session effect |
+|---|---|---|
+| `register`, `login` | `[]` | Return an access token and set the refresh cookie |
+| `refresh` | `refreshCookie` | Rotate the refresh cookie and return a new access token; `401` clears the cookie |
+| `logout` | `refreshCookie` | Revoke the refresh token and clear the cookie; `204` even without a cookie |
+| `getCurrentUser` | `bearerAuth` | — (the user comes from the token's `sub`; no user id in the request) |
+
+- **Access token:** JWT (RS256), 10 minutes, in the response body (`SessionResponse`). The client keeps it in memory only.
+- **Refresh cookie:** `refresh_token`, `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, 7 days. It never appears in a response body.
+- **`Origin` check:** `refresh` and `logout` answer `403` when the `Origin` header is missing or not an allowed origin. This, with `SameSite=Strict`, replaces CSRF tokens.
+- **Responses carrying a token** have `Cache-Control: no-store`.
+- **Login errors are generic:** any credential mismatch gives the same `401` body; `LoginRequest` carries no policy constraint, so a short password never gets a `400` revealing the rules.
+
+**Why the request schemas carry loose lengths.** The backend generates Bean Validation from the contract (`useBeanValidation`), and `@Size` counts UTF-16 units on the raw value. The rules count Unicode code points after trimming (display name) or after NFKC normalisation (password): a valid 64-emoji password is 128 UTF-16 units. So the schemas only set hard upper bounds (`password` ≤ 256, `displayName` ≤ 200, `email` ≤ 254), and the backend checks the real rules, reported through `FieldError.code`. For the same reason `RegisterRequest.email` has no `format: email`: the generated `@Email` would check the raw value and reject an address the backend accepts once trimmed (`"Jane@Example.com "`).
+
+The rules, reported through `FieldError.code`:
+
+| Field | Rule (backend) |
+|---|---|
+| `email` | Valid address, ≤ 254 characters, trimmed and lower-cased, not registered yet (`409` `email_taken`) |
+| `displayName` | 2–50 code points after trimming |
+| `password` | 15–64 code points after NFKC, not in the compromised-password blocklist |
+
+Rate limiting (`429`) is added in M2.
 
 ## Checks
 

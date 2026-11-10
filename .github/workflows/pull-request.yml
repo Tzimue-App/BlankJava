@@ -26,9 +26,12 @@ concurrency:
   group: pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# dorny/test-reporter writes its reports to the job summary (use-actions-summary: true), not to
+# check runs: creating a check run then updating it at once sometimes got a 404 from GitHub, which
+# left the check pending forever (#59). Failed tests still fail the step (fail-on-error), so no
+# "checks: write".
 permissions:
   contents: read
-  checks: write
   pull-requests: write
 
 env:
@@ -116,7 +119,7 @@ jobs:
           name: Release script tests
           path: build/test-results/junit.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
 
       - name: Upload release script report
         id: upload
@@ -194,7 +197,7 @@ jobs:
           name: Backend tests
           path: backend/build/test-results/test/*.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
 
       - name: Backend integration tests report
         if: always()
@@ -203,7 +206,7 @@ jobs:
           name: Backend integration tests
           path: backend/build/test-results/integrationTest/*.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
           # Without --continue, a failing "test" task stops "check" before "integrationTest"
           # runs, so there is legitimately nothing to report yet; don't fail this step for that.
           fail-on-empty: false
@@ -276,7 +279,7 @@ jobs:
           name: Frontend tests
           path: frontend/test-results/junit.xml
           reporter: java-junit
-          use-actions-summary: false
+          use-actions-summary: true
 
       # Vitest writes lcov paths relative to frontend/; diff-cover matches them against git paths
       # (frontend/...), so they are prefixed first, or every line would count as "no coverage data".
@@ -339,12 +342,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build images without pushing
+      # Each image is also checked for private keys: the JWT signing key is mounted at runtime and
+      # must never be baked in (infra/README.md, #37)
+      - name: Build images without pushing, and check they contain no private key
         run: |
           for module in backend frontend; do
             if [ -f "$module/Dockerfile" ]; then
               # Root context: images are generated from api/openapi.yaml
-              docker buildx build -f "$module/Dockerfile" .
+              docker buildx build --load -t "blankjava-$module:check" -f "$module/Dockerfile" .
+              case "$module" in
+                backend) dirs="/app" ;;
+                frontend) dirs="/usr/share/nginx/html /etc/nginx" ;;
+              esac
+              if docker run --rm --entrypoint sh "blankjava-$module:check" -c "grep -rlI 'PRIVATE KEY' $dirs"; then
+                echo "::error::The $module image contains a private key (files listed above)."
+                exit 1
+              fi
+              echo "No private key in the $module image."
             else
               echo "No $module/Dockerfile yet, skipping."
             fi
@@ -373,6 +387,10 @@ jobs:
       contents: read
       pull-requests: write
     uses: ./.github/workflows/e2e.yml
+    # JWT signing key of the Selenium stack (infra/README.md); empty on fork and Dependabot PRs,
+    # where e2e.yml generates a throw-away key instead
+    secrets:
+      JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
 
   test-report:
     # Full reports and a sticky comment with totals (issue #19); informational only, not required

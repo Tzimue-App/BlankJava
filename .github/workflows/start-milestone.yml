@@ -1,10 +1,10 @@
 name: "Start milestone"
 
-# Creates the milestone branch vX.Y.Z-a from dev, with the project version set to X.Y.Z-a
+# Creates the milestone branch vX.Y.Z-a from dev, with the project version set to X.Y.Z-alpha
 # (docs/technical_analysis.md §8.1). Same as running locally on dev:
 #   python bump_version.py --start-milestone X.Y.Z
 # The script refuses a version that is not the next major, minor or patch, or that is already
-# released (tag vX.Y.Z-a exists).
+# released (tag vX.Y.Z-alpha exists).
 
 on:
   workflow_dispatch:
@@ -43,4 +43,4 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           python bump_version.py --start-milestone "$VERSION"
-          echo "Milestone branch **v${VERSION#v}-a** created from dev. Create one issue branch per issue from it." >> "$GITHUB_STEP_SUMMARY"
+          echo "Milestone branch **v${VERSION#v}-a** created from dev (project ${VERSION#v}-alpha). Create one issue branch per issue from it." >> "$GITHUB_STEP_SUMMARY"

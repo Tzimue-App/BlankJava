@@ -20,7 +20,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 /** Whole application against a real PostgreSQL (Testcontainers): run by {@code ./gradlew check}. */
 @Tag("integration")
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "blankjava.release=0.1.0-b")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "blankjava.release=0.2.0-beta")
 class BackendIntegrationTest {
 
     @Container
@@ -36,11 +36,12 @@ class BackendIntegrationTest {
     private JdbcTemplate jdbc;
 
     @Test
-    void flywayAppliedTheBaseline() {
+    void flywayAppliedEveryMigration() {
         Integer applied = jdbc.queryForObject(
-                "select count(*) from flyway_schema_history where version = '1' and success", Integer.class);
+                "select count(*) from flyway_schema_history where version in ('1', '2', '3') and success",
+                Integer.class);
 
-        assertThat(applied).isEqualTo(1);
+        assertThat(applied).isEqualTo(3);
     }
 
     @Test
@@ -59,15 +60,16 @@ class BackendIntegrationTest {
         assertThat(response.body())
                 .contains("\"build\":")
                 .contains("\"version\":")
-                .contains("\"release\":\"0.1.0-b\"")
+                .contains("\"release\":\"0.2.0-beta\"")
                 .containsPattern("\"api\":\"\\d+\\.\\d+\\.\\d+\"");
     }
 
     @Test
-    void unknownPathIsAProblemWithTraceId() throws Exception {
+    void anUnknownPathWithoutTokenIsA401ProblemWithTraceId() throws Exception {
+        // Every route is protected unless public on purpose: no route discovery without a token
         HttpResponse<String> response = get("/api/unknown");
 
-        assertThat(response.statusCode()).isEqualTo(404);
+        assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.headers().firstValue("Content-Type"))
                 .hasValueSatisfying(type -> assertThat(type).startsWith("application/problem+json"));
         assertThat(response.body()).containsPattern("\"traceId\":\"[0-9a-f]{32}\"");

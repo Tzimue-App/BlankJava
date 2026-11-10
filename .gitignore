@@ -18,6 +18,8 @@ Thumbs.db
 
 # Local configuration and secrets
 .env
+# JWT signing keys (infra/README.md); never committed
+infra/secrets/
 .env.*
 !.env.example
 *.local

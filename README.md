@@ -33,5 +33,5 @@ python bump_version.py --start-milestone 0.1.7
 ```
 
 - Each issue PR fills the `[Unreleased]` section of [CHANGELOG.md](CHANGELOG.md) and sets `Bump-<component>:` for each component it changes.
-- Merges into `dev`, `test` and `main` release `vX.Y.Z-a`, `vX.Y.Z-b` and `vX.Y.Z` automatically (e.g. `v0.1.7-a` → `v0.1.7-b` → `v0.1.7`).
+- Merges into `dev`, `test` and `main` release `vX.Y.Z-alpha`, `vX.Y.Z-beta` and `vX.Y.Z` automatically (e.g. `v0.1.7-alpha` → `v0.1.7-beta` → `v0.1.7`). The root `package.json` carries the same version without the `v`; components keep their own `X.Y.Z`.
 - Issues follow [.github/ISSUE_GUIDELINES.md](.github/ISSUE_GUIDELINES.md).

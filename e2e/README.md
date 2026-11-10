@@ -45,35 +45,65 @@ Point the suite at any reachable Selenium Grid and frontend, e.g. a stack whose 
 published on the host:
 
 ```bash
-SELENIUM_URL=http://localhost:4444 E2E_BASE_URL=https://localhost ./gradlew test
+docker compose cp frontend:/etc/nginx/certs/tls.crt e2e/build/stack.crt
+cd e2e
+SELENIUM_URL=http://localhost:4444 E2E_BASE_URL=https://localhost E2E_TLS_CERT="$PWD/build/stack.crt" ./gradlew test
 ```
+
+`E2E_TLS_CERT` is the stack's certificate (PEM). The suite's own HTTP client (`StackHttp`: test
+users, report header) trusts that certificate and nothing else, and still checks the hostname
+(its SAN covers `frontend` and `localhost`). The `e2e` Compose service sets it to the `certs`
+volume, mounted read-only. Without it the JVM's default trust store applies, which suits a stack
+with a real certificate; a path that cannot be read fails the first test that calls the API.
+Chrome, in the Selenium container, accepts the self-signed certificate on its own
+(`DriverFactory`).
 
 ## Writing a journey
 
-- One test class per journey, `@Tag("<area>")` (`smoke`, later `accounts`…), `@SeleniumTest`.
+- One test class per journey, `@Tag("<area>")` (`smoke`, `accounts`…), `@SeleniumTest`.
 - `WebDriver` as a test method parameter (`@SeleniumTest` injects it); build or reuse a Page
   Object from `pages/` extending `BasePage`, which locates elements by `[data-testid="…"]` with
   an explicit wait — no `Thread.sleep`.
 - Wrap meaningful actions in `Steps.step("…", () -> …)`, so the Allure report reads like the
   journey; call `Steps.screenshot("…")` at any point worth a picture besides the automatic one at
   the end of the test.
-- Each test creates its own data (`TestUsers.uniqueEmail()`), so tests are independent and safe to
-  run in parallel.
+- Each test creates its own data, so tests are independent and safe to run in parallel:
+  `TestUsers.fresh(name)` for a user the test registers through the form, `TestUsers.registered()`
+  for one registered through the API when registration is not what the journey tests.
+- Check accessibility with `Accessibility.assertNoSeriousViolations(driver)` (axe-core, WCAG 2.1 A
+  and AA): every violation is attached to the report, `serious` and `critical` ones fail the test.
 
 ## Files
 
 | Path | Role |
 |---|---|
-| `support/Config.java` | `SELENIUM_URL`, `E2E_BASE_URL`, this module's version |
+| `support/Config.java` | `SELENIUM_URL`, `E2E_BASE_URL`, `E2E_TLS_CERT`, this module's version |
 | `support/DriverFactory.java` | One `WebDriver` per test, injected as a parameter |
 | `support/ReportingExtension.java` | Screenshot (+ console log, page source on failure) after every test |
 | `support/EnvironmentReportExtension.java` | Writes the Allure report's "Environment" header once, from `/actuator/info` |
 | `support/Steps.java`, `support/Screenshots.java` | Named steps, on-demand screenshots |
-| `support/TestUsers.java` | Unique test accounts for future journeys |
-| `pages/BasePage.java`, `pages/HomePage.java` | Page Objects |
+| `support/TestUsers.java` | Unique test accounts, registered through the form or the API |
+| `support/StackHttp.java` | HTTP client for calls to the stack outside the browser, trusting only `E2E_TLS_CERT` |
+| `support/Accessibility.java` | axe-core scan of the current page |
+| `pages/` | Page Objects: `BasePage`, `AppFrame` (header, footer), `RegisterPage`, `LoginPage`, `ProfilePage` |
+
+## Journeys
+
+| Class | Tag | Covers |
+|---|---|---|
+| `SmokeTest` | `smoke` | The stack answers over HTTPS, `/` leads to `/login`, the footer shows the backend and API versions |
+| `RegisterJourneyTest` | `accounts` | `/register` (#33): success, `returnUrl`, duplicate e-mail, invalid fields, breached password, NFKC counting, keyboard only, redirect when logged in, axe-core |
+| `LoginJourneyTest` | `accounts` | `/login` and *Log out* (#34): success, one generic refusal, `returnUrl` inside and outside the app, logout for good, redirect when logged in, keyboard only, axe-core |
+| `ProfileJourneyTest` | `accounts` | `/me` and `/` (#35): profile values, anonymous → login → back, root redirect, HTML display name shown as text, axe-core |
+| `SessionJourneyTest` | `accounts` | The client session (#32): reload, two tabs reloading together (Web Locks), logout in one tab ends the other, a refused access token renewed once and the request retried |
+
+The refused-token journey wraps `window.fetch` in the page to send a bad token once, instead of
+waiting 10 minutes for a real expiry: the backend refuses it like an expired one, which is what the
+interceptor reacts to.
 
 ## Pinned versions
 
 Selenium client (`build.gradle.kts`, `seleniumVersion`) is pinned to match the Grid image tag in
 `compose.yaml`, so the client and server speak the same WebDriver protocol version. Bump both
-together.
+together. axe-core (`axeVersion`) brings its own Selenium and WebDriverManager, both excluded: the
+pinned client above is used, and the Grid provides the browser.

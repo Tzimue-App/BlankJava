@@ -11,14 +11,34 @@ import org.jspecify.annotations.Nullable;
 public final class LogMasking {
 
     // Single character classes only: no repeated group, so no recursion in java.util.regex (a long
-    // dotted domain overflowed the stack with "(?:\.label)+"). Callers pass bounded texts (contract:
-    // message <= 1000, url <= 500 characters).
-    private static final Pattern EMAIL = Pattern.compile("([A-Za-z0-9])[A-Za-z0-9._%+-]*@([A-Za-z0-9][A-Za-z0-9.-]*)");
+    // dotted domain overflowed the stack with "(?:\.label)+"). Quantifiers bounded to the RFC 5321
+    // lengths (local part 64, domain 253): with "*", every start position of a text without "@"
+    // scanned to its end, quadratic work (#59); bounded, each position costs at most 64 steps.
+    // A longer local part is masked from its last 64 characters.
+    private static final Pattern EMAIL =
+            Pattern.compile("([A-Za-z0-9])[A-Za-z0-9._%+-]{0,63}@([A-Za-z0-9][A-Za-z0-9.-]{0,252})");
 
     private LogMasking() {}
 
     /** Masks every e-mail address found in a free text (e.g. an error message). */
     public static @Nullable String maskEmails(@Nullable String text) {
         return text == null ? null : EMAIL.matcher(text).replaceAll("$1***@$2");
+    }
+
+    /**
+     * Masks one value expected to be an e-mail address, keeping its first character and its domain
+     * ({@code j***@example.com}). Anything else, which may be a password typed in the wrong field,
+     * is fully masked ({@code ***}).
+     */
+    public static @Nullable String maskEmail(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.strip();
+        int at = trimmed.lastIndexOf('@');
+        if (at <= 0 || at == trimmed.length() - 1) {
+            return "***";
+        }
+        return trimmed.substring(0, trimmed.offsetByCodePoints(0, 1)) + "***" + trimmed.substring(at);
     }
 }
