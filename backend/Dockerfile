@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Backend image. Build from the REPOSITORY ROOT: the code is generated from api/openapi.yaml.
-#   docker build -f backend/Dockerfile --build-arg APP_RELEASE=0.1.0-b -t blankjava-backend .
+#   docker build -f backend/Dockerfile --build-arg APP_RELEASE=0.2.0-beta -t blankjava-backend .
 
 # ---- Build: compile and extract the jar layers ------------------------------------------------
 FROM eclipse-temurin:25-jdk AS build

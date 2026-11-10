@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Frontend image. Build from the REPOSITORY ROOT: the API client is generated from api/openapi.yaml.
-#   docker build -f frontend/Dockerfile --build-arg APP_RELEASE=0.1.0-b -t blankjava-frontend .
+#   docker build -f frontend/Dockerfile --build-arg APP_RELEASE=0.2.0-beta -t blankjava-frontend .
 
 # ---- Build: install, generate, compile ---------------------------------------------------------
 FROM node:24-alpine AS build

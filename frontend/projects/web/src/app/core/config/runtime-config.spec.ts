@@ -23,10 +23,10 @@ describe('RuntimeConfigService', () => {
 
   it('loads /config.json', async () => {
     const loading = service.load();
-    http.expectOne('/config.json').flush({ release: '0.1.0-b' });
+    http.expectOne('/config.json').flush({ release: '0.2.0-beta' });
     await loading;
 
-    expect(service.config().release).toBe('0.1.0-b');
+    expect(service.config().release).toBe('0.2.0-beta');
   });
 
   it('keeps the defaults for missing keys', async () => {
