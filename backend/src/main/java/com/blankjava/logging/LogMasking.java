@@ -11,9 +11,12 @@ import org.jspecify.annotations.Nullable;
 public final class LogMasking {
 
     // Single character classes only: no repeated group, so no recursion in java.util.regex (a long
-    // dotted domain overflowed the stack with "(?:\.label)+"). Callers pass bounded texts (contract:
-    // message <= 1000, url <= 500 characters).
-    private static final Pattern EMAIL = Pattern.compile("([A-Za-z0-9])[A-Za-z0-9._%+-]*@([A-Za-z0-9][A-Za-z0-9.-]*)");
+    // dotted domain overflowed the stack with "(?:\.label)+"). Quantifiers bounded to the RFC 5321
+    // lengths (local part 64, domain 253): with "*", every start position of a text without "@"
+    // scanned to its end, quadratic work (#59); bounded, each position costs at most 64 steps.
+    // A longer local part is masked from its last 64 characters.
+    private static final Pattern EMAIL =
+            Pattern.compile("([A-Za-z0-9])[A-Za-z0-9._%+-]{0,63}@([A-Za-z0-9][A-Za-z0-9.-]{0,252})");
 
     private LogMasking() {}
 

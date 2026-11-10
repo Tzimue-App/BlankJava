@@ -29,7 +29,26 @@ class LogMaskingTest {
     @Test
     @Timeout(value = 1, unit = TimeUnit.SECONDS)
     void staysFastOnTextsWithoutAtSign() {
-        assertThat(LogMasking.maskEmails("a.".repeat(5_000))).isEqualTo("a.".repeat(5_000));
+        // Quadratic before #59: this length took far longer than the timeout with unbounded "*"
+        String input = "a.".repeat(50_000);
+
+        assertThat(LogMasking.maskEmails(input)).isEqualTo(input);
+    }
+
+    @Test
+    void masksAddressesAtTheRfcLengthLimits() {
+        String local = "j" + "x".repeat(63);
+        String domain = "d" + "o".repeat(240) + ".example.com";
+
+        assertThat(LogMasking.maskEmails("from " + local + "@" + domain + " end"))
+                .isEqualTo("from j***@" + domain + " end");
+    }
+
+    @Test
+    void stillMasksTheEndOfAnOverlongLocalPart() {
+        String local = "abcdef" + "x".repeat(64);
+
+        assertThat(LogMasking.maskEmails(local + "@example.com")).isEqualTo("abcdefx***@example.com");
     }
 
     @Test
