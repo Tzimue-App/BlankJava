@@ -27,6 +27,7 @@ Bump-e2e: 0
 - `.gitignore` ignores `bin/`, where VS Code's Java extension (Eclipse JDT) compiles `backend/` and `e2e/` for its own tooling, apart from the Gradle `build/` (#27)
 
 ### ChangeLog
+- Technical analysis v3.3 and roadmap: M2 *Hardening* targets `v0.3.0` (milestone branch `v0.3.0-a`, release `v0.3.0-alpha`) instead of `v1.0.0`; the issue templates' milestone option is now *M2 — Hardening (v0.3.0)* (#61)
 
 ---
 
