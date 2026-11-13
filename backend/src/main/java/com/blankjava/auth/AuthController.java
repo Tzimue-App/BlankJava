@@ -17,6 +17,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -83,6 +84,15 @@ public class AuthController implements AuthApi {
                         HttpHeaders.SET_COOKIE,
                         RefreshTokenService.clearCookie().toString())
                 .build();
+    }
+
+    /**
+     * Declared by the contract (#62) so the generated interface compiles; implemented by #66. Until
+     * then it answers {@code 501} as Problem Details (the contract's {@code default} response).
+     */
+    @Override
+    public ResponseEntity<Void> logoutAll() {
+        throw new ErrorResponseException(HttpStatus.NOT_IMPLEMENTED);
     }
 
     private @Nullable String refreshCookie() {

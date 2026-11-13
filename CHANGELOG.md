@@ -10,12 +10,13 @@ A component whose directory changed must be bumped. Over a milestone, keep the m
 significant bump (a PR may raise a value, never lower it).
 The project version comes from the milestone branch (vX.Y.Z-a, project X.Y.Z-alpha).
 -->
-Bump-api: 0
-Bump-backend: 0
+Bump-api: 2
+Bump-backend: 3
 Bump-frontend: 3
 Bump-e2e: 0
 
 ### Features
+- Accounts contract for M2: `register`, `login` and `refresh` document `429 Too Many Requests` (shared `TooManyRequests` response: Problem Details with `traceId`, required `Retry-After` in seconds, also the shape of the Nginx first layer); new `POST /api/auth/logout-all` (`logoutAll`, bearer token required): revokes every refresh token of the user, invalidates the access tokens issued before the call, `204` clears the refresh cookie, `401` without a valid token. The backend answers `501` on `logout-all` until #66 implements it (#62)
 
 ### Patches
 - Frontend dev tooling clears Dependabot alerts on `vite` and `minimatch`: Angular aligned on 22.2.6 (`@angular/build`, `@angular/cli`, `@angular/cdk`, `@angular/material` 22.2.7), whose build pins the patched `vite@8.3.5`, and an npm `overrides` entry forces `minimatch@^11.0.1` under the ESLint toolchain, which still asks for 10.x; drop it once `eslint` requires 11 (#25)

@@ -21,6 +21,7 @@ import com.blankjava.auth.RefreshTokenService.IssuedRefreshToken;
 import com.blankjava.auth.SessionService.Session;
 import com.blankjava.logging.CapturedLogs;
 import com.blankjava.logging.SecurityAuditLog;
+import com.blankjava.security.AccessTokenService;
 import com.blankjava.security.AccessTokenService.AccessToken;
 import com.blankjava.security.ApiSecurity;
 import com.blankjava.web.ApiPathConfig;
@@ -65,6 +66,30 @@ class AuthControllerTest {
 
     @MockitoBean
     private SessionService sessions;
+
+    @Autowired
+    private AccessTokenService tokens;
+
+    @Test
+    void logoutAllNeedsAnAccessToken() throws Exception {
+        mvc.perform(post("/api/auth/logout-all"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(matchesContract());
+    }
+
+    @Test
+    void logoutAllIsNotImplementedYet() throws Exception {
+        mvc.perform(post("/api/auth/logout-all")
+                        .header(
+                                "Authorization",
+                                "Bearer " + tokens.issue(USER_ID).value()))
+                .andExpect(status().isNotImplemented())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.traceId").value(matchesPattern(TRACE_ID)))
+                .andExpect(matchesContract());
+        verifyNoInteractions(sessions);
+    }
 
     @Test
     void registeringAnswers201WithTheSessionTheCookieAndNoStore() throws Exception {
