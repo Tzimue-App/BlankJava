@@ -19,6 +19,7 @@ Bump-e2e: 0
 
 ### Patches
 - Frontend dev tooling clears Dependabot alerts on `vite` and `minimatch`: Angular aligned on 22.2.6 (`@angular/build`, `@angular/cli`, `@angular/cdk`, `@angular/material` 22.2.7), whose build pins the patched `vite@8.3.5`, and an npm `overrides` entry forces `minimatch@^11.0.1` under the ESLint toolchain, which still asks for 10.x; drop it once `eslint` requires 11 (#25)
+- Frontend image upgrades its Alpine packages at build time (`apk upgrade`) instead of keeping those baked into `nginx-unprivileged:1.30-alpine` at its last publish, and removes the unused `curl`/`libcurl` (clears CVE-2026-86413, CVSS 9.1) (#26)
 
 ### Bug Fixes
 
