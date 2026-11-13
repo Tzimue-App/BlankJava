@@ -2,6 +2,8 @@
 build/
 target/
 out/
+# IDE Java output (VS Code Java / Eclipse JDT), separate from the Gradle build
+bin/
 dist/
 .gradle/
 !gradle/wrapper/gradle-wrapper.jar
