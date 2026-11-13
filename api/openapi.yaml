@@ -69,6 +69,8 @@ paths:
           $ref: "#/components/responses/ValidationFailed"
         "409":
           $ref: "#/components/responses/EmailTaken"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
         default:
           $ref: "#/components/responses/InternalError"
   /auth/login:
@@ -115,6 +117,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/InvalidCredentials"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
         default:
           $ref: "#/components/responses/InternalError"
   /auth/refresh:
@@ -153,6 +157,8 @@ paths:
           $ref: "#/components/responses/RefreshRejected"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
         default:
           $ref: "#/components/responses/InternalError"
   /auth/logout:
@@ -175,6 +181,28 @@ paths:
               $ref: "#/components/headers/ClearRefreshCookie"
         "403":
           $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/InternalError"
+  /auth/logout-all:
+    post:
+      operationId: logoutAll
+      tags: [auth]
+      summary: End every session of the user
+      description: |
+        Log out everywhere: revokes every refresh token of the access token's owner (its `sub`
+        claim) and makes every access token issued to that user before the call invalid
+        immediately, including the one presenting the request. Clears the refresh cookie of the
+        calling browser. No request body. The client then drops its session as after `logout`.
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Every session of the user ended, cookie cleared.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/ClearRefreshCookie"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         default:
           $ref: "#/components/responses/InternalError"
   /users/me:
@@ -481,6 +509,13 @@ components:
       schema:
         type: string
       example: Bearer
+    RetryAfter:
+      description: Seconds to wait before sending the request again (RFC 9110 §10.2.3).
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 60
   responses:
     BadRequest:
       description: The request is invalid (malformed JSON, wrong type, missing field).
@@ -593,6 +628,26 @@ components:
             instance: /api/auth/register
             traceId: 4bf92f3577b34da6a3ce929d0e0e4736
             code: email_taken
+    TooManyRequests:
+      description: |
+        Too many attempts: the rate limit of the operation is reached (per client IP, and per
+        e-mail on `register` and `login`). `Retry-After` says when to try again. The Nginx reverse
+        proxy, first layer of the rate limiting, can also answer it before the backend, with the
+        same headers and body shape.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Too Many Requests
+            status: 429
+            detail: Too many attempts. Try again later.
+            instance: /api/auth/login
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
     PayloadTooLarge:
       description: The request body is larger than the operation allows.
       content:
