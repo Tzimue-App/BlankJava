@@ -24,6 +24,7 @@ Bump-e2e: 0
 ### Bug Fixes
 
 ### Deployment & Configuration
+- `.gitignore` ignores `bin/`, where VS Code's Java extension (Eclipse JDT) compiles `backend/` and `e2e/` for its own tooling, apart from the Gradle `build/` (#27)
 
 ### ChangeLog
 
