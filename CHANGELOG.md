@@ -12,12 +12,13 @@ The project version comes from the milestone branch (vX.Y.Z-a, project X.Y.Z-alp
 -->
 Bump-api: 0
 Bump-backend: 0
-Bump-frontend: 0
+Bump-frontend: 3
 Bump-e2e: 0
 
 ### Features
 
 ### Patches
+- Frontend dev tooling clears Dependabot alerts on `vite` and `minimatch`: Angular aligned on 22.2.6 (`@angular/build`, `@angular/cli`, `@angular/cdk`, `@angular/material` 22.2.7), whose build pins the patched `vite@8.3.5`, and an npm `overrides` entry forces `minimatch@^11.0.1` under the ESLint toolchain, which still asks for 10.x; drop it once `eslint` requires 11 (#25)
 
 ### Bug Fixes
 
