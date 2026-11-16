@@ -30,7 +30,9 @@ RUN apk upgrade --no-cache \
     && apk del --no-cache curl \
     && rm -rf /var/cache/apk/*
 USER 101
-COPY frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
+# Owned by the Nginx user: the Compose stack renders its own default.conf over it at startup from a
+# template (infra/nginx/default.conf, rate-limit values per environment), as the non-root user
+COPY --chown=101:101 frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /src/frontend/dist/web/browser /usr/share/nginx/html
 
 EXPOSE 8080

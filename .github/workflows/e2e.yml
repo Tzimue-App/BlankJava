@@ -23,6 +23,14 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The suite registers and logs in many users from one browser container (one client IP): Nginx's
+    # /api/auth/* rate limit gets values the journeys never reach (infra/README.md, "Rate limiting").
+    # Job-wide, so every docker compose call sees the same configuration (a differing one would make
+    # "compose run" recreate the frontend); they take precedence over the .env copied from .env.example.
+    env:
+      NGINX_AUTH_RATE: 600r/m
+      NGINX_AUTH_BURST: "100"
+      NGINX_AUTH_RETRY_AFTER: "1"
 
     steps:
       - name: Checkout repository
