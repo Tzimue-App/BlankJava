@@ -54,8 +54,9 @@ Shared building blocks in `components`:
 |---|---|
 | `schemas/Problem` | Body of every error response; optional `code` for errors the client handles specifically (`email_taken`) |
 | `schemas/ValidationProblem`, `FieldError` | `400` listing each invalid field with a stable `code` |
-| `responses/BadRequest`, `ValidationFailed`, `Unauthorized`, `Forbidden`, `PayloadTooLarge`, `InternalError` | Reuse with `$ref` instead of redefining errors |
+| `responses/BadRequest`, `ValidationFailed`, `Unauthorized`, `Forbidden`, `TooManyRequests`, `PayloadTooLarge`, `InternalError` | Reuse with `$ref` instead of redefining errors |
 | `headers/SetRefreshCookie`, `ClearRefreshCookie`, `CacheControlNoStore`, `WwwAuthenticateBearer` | Response headers of the session operations |
+| `headers/RetryAfter` | Required `Retry-After` (seconds) of `TooManyRequests` |
 | `securitySchemes/bearerAuth` | `security: [{ bearerAuth: [] }]` on operations that need a logged-in user |
 | `securitySchemes/refreshCookie` | `security: [{ refreshCookie: [] }]` on operations that read the refresh cookie (`refresh`, `logout`) |
 
@@ -63,13 +64,14 @@ Every new operation declares `security` explicitly: `[]` when it is public.
 
 ## Accounts API
 
-The `auth` and `users` operations (`register`, `login`, `refresh`, `logout`, `getCurrentUser`). Their security model, as the contract describes it:
+The `auth` and `users` operations (`register`, `login`, `refresh`, `logout`, `logoutAll`, `getCurrentUser`). Their security model, as the contract describes it:
 
 | Operation | `security` | Session effect |
 |---|---|---|
 | `register`, `login` | `[]` | Return an access token and set the refresh cookie |
 | `refresh` | `refreshCookie` | Rotate the refresh cookie and return a new access token; `401` clears the cookie |
 | `logout` | `refreshCookie` | Revoke the refresh token and clear the cookie; `204` even without a cookie |
+| `logoutAll` | `bearerAuth` | Revoke every refresh token of the user, invalidate the access tokens issued before the call, clear the cookie; `204` |
 | `getCurrentUser` | `bearerAuth` | — (the user comes from the token's `sub`; no user id in the request) |
 
 - **Access token:** JWT (RS256), 10 minutes, in the response body (`SessionResponse`). The client keeps it in memory only.
@@ -88,7 +90,7 @@ The rules, reported through `FieldError.code`:
 | `displayName` | 2–50 code points after trimming |
 | `password` | 15–64 code points after NFKC, not in the compromised-password blocklist |
 
-Rate limiting (`429`) is added in M2.
+**Rate limiting:** `register`, `login` and `refresh` can answer `429` (`TooManyRequests`, Problem Details with a required `Retry-After` in seconds). Nginx answers it first (#63), then the backend per IP and per e-mail (#64); both use the same body shape.
 
 ## Checks
 

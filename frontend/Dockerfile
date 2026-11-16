@@ -22,7 +22,17 @@ RUN printf '{\n  "release": "%s"\n}\n' "$APP_RELEASE" > dist/web/browser/config.
 
 # ---- Runtime: Nginx as a non-root user (port 8080) --------------------------------------------
 FROM nginxinc/nginx-unprivileged:1.30-alpine
-COPY frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
+# The base image ships the Alpine packages of its last upstream publish: upgrade them at build time so
+# fixed CVEs land without waiting for upstream, and drop curl (unused: the healthcheck uses wget).
+# The upstream image runs as the unprivileged nginx user (UID 101), so switch to root for apk and back.
+USER root
+RUN apk upgrade --no-cache \
+    && apk del --no-cache curl \
+    && rm -rf /var/cache/apk/*
+USER 101
+# Owned by the Nginx user: the Compose stack renders its own default.conf over it at startup from a
+# template (infra/nginx/default.conf, rate-limit values per environment), as the non-root user
+COPY --chown=101:101 frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /src/frontend/dist/web/browser /usr/share/nginx/html
 
 EXPOSE 8080

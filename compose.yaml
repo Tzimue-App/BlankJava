@@ -104,8 +104,16 @@ services:
     # Lets the non-root Nginx user bind 80 and 443 inside its own network namespace
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
+    environment:
+      # Rate limit of /api/auth/* per client IP (infra/README.md, "Rate limiting"). Only variables
+      # matching the filter are replaced in the default.conf template.
+      NGINX_ENVSUBST_FILTER: "^NGINX_AUTH_"
+      NGINX_AUTH_RATE: ${NGINX_AUTH_RATE:-10r/m}
+      NGINX_AUTH_BURST: ${NGINX_AUTH_BURST:-10}
+      NGINX_AUTH_RETRY_AFTER: ${NGINX_AUTH_RETRY_AFTER:-6}
     volumes:
-      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # A template: rendered to /etc/nginx/conf.d/default.conf by the image's entrypoint at startup
+      - ./infra/nginx/default.conf:/etc/nginx/templates/default.conf.template:ro
       - ./infra/nginx/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro
       - ./infra/nginx/proxy.conf:/etc/nginx/snippets/proxy.conf:ro
       - certs:/etc/nginx/certs:ro

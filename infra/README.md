@@ -104,7 +104,7 @@ On Windows PowerShell, set the password first with `$env:DB_PASSWORD = "change-m
 - **Internal endpoints.** Only `/actuator/info` is exposed; other actuator endpoints answer 404 from outside.
 - **Request size.** Bodies over 64 kB are rejected with 413.
 
-Files: `compose.yaml` and `.env.example` at the repository root; `infra/nginx/` for the Nginx configuration mounted over the image's default one; `infra/secrets/` (git-ignored) for the JWT signing key.
+Files: `compose.yaml` and `.env.example` at the repository root; `infra/nginx/` for the Nginx configuration (`default.conf` is mounted as a template, rendered over the image's default one at startup, see [Rate limiting](#rate-limiting)); `infra/secrets/` (git-ignored) for the JWT signing key.
 
 ## JWT signing key
 
@@ -162,3 +162,43 @@ For the CI secret, no overlap is needed: each Selenium run starts a new stack, s
 ## Allowed origins
 
 `refresh` and `logout` read the session cookie, so they only accept requests whose `Origin` header is one of `BLANKJAVA_ALLOWED_ORIGINS` (comma-separated `scheme://host[:port]`). The default in `compose.yaml` covers this stack: `https://localhost` for your browser and `https://frontend` for the Selenium browser. If you change `HTTPS_PORT`, add the port (`https://localhost:8443`). The `dev` profile accepts `http://localhost:4200` (`ng serve`).
+
+## Rate limiting
+
+Login, registration and refresh each cost the backend a password hash or a database lookup, so `/api/auth/*` is limited in two layers (docs/technical_analysis.md §5.3):
+
+1. **Nginx, per client IP** (`nginx/default.conf`, `limit_req` zone `auth`): a flood is answered by Nginx and never reaches the backend. Only `/api/auth/*` is limited; `/api/users/me`, `/api/client-logs`, `/actuator/info` and the Angular files are not.
+2. **Backend, per IP and per e-mail** (Bucket4j, #64): finer limits, e.g. many IPs trying one account.
+
+### Tuning the Nginx layer
+
+`default.conf` is a template: at startup the image's entrypoint replaces the `${NGINX_AUTH_*}` variables (only those, `NGINX_ENVSUBST_FILTER` in `compose.yaml`) and writes the result to `/etc/nginx/conf.d/default.conf`. Set them in `.env`, then `docker compose up -d frontend`:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NGINX_AUTH_RATE` | `10r/m` | Sustained rate per client IP (`r/s` or `r/m`): one request every 6 s |
+| `NGINX_AUTH_BURST` | `10` | Requests accepted at once above the rate (`nodelay`: served immediately, not queued) |
+| `NGINX_AUTH_RETRY_AFTER` | `6` | `Retry-After` of a `429`, in seconds: when the next request is accepted, i.e. `60 / requests per minute` |
+
+With the defaults, one IP can send 11 requests at once, then one every 6 seconds; the budget refills at that pace. A page load of the app sends one `refresh`, so a user reloading a dozen times in a few seconds can meet it too. Keep `RETRY_AFTER` in line with `RATE` when you change it. Behind a shared address (an office NAT), all users share one budget: raise the rate rather than the burst.
+
+The Selenium suite registers and logs in many users from a single browser container, so `.github/workflows/e2e.yml` starts the stack with its own, much higher values. Do the same in `.env` before running the suite locally (`NGINX_AUTH_RATE=600r/m`, `NGINX_AUTH_BURST=100`, `NGINX_AUTH_RETRY_AFTER=1`), rather than on one command line: `docker compose run` would recreate the frontend with the `.env` values.
+
+### What a 429 looks like
+
+The response has the shape of the contract's `TooManyRequests` (`api/openapi.yaml`), whichever layer answers:
+
+```http
+HTTP/2 429
+content-type: application/problem+json
+retry-after: 6
+cache-control: no-store
+
+{"type":"about:blank","title":"Too Many Requests","status":429,"detail":"Too many attempts. Try again later.","traceId":"4bf92f3577b34da6a3ce929d0e0e4736"}
+```
+
+In the logs, a request rejected by Nginx has an Nginx access line with `"http.response.status_code":429` and an empty `nginx.upstream_time_s`, a `limiting requests, excess: … by zone "auth", client: …` warning on Nginx's error output, and **no** `backend.access` line for its `trace.id`:
+
+```bash
+docker compose logs frontend | grep '"http.response.status_code":429'
+```
