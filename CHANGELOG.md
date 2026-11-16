@@ -24,6 +24,7 @@ Bump-e2e: 0
 ### Deployment & Configuration
 
 ### ChangeLog
+- Claude Code configuration is committed: `CLAUDE.local.md`, `.claude/settings.local.json` and Claude Code runtime state are git-ignored, `.claude/` (worktrees included) is out of the Docker build context, `.worktreeinclude` copies `.env`, `infra/secrets/` and `docs/` into new worktrees, `.claude/README.md` describes the layout and the scenario prompts used to evaluate M1.1; M1.1 added to the issue templates' milestone list (#94)
 
 ---
 
