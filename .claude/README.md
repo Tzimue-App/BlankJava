@@ -13,12 +13,16 @@ Shared Claude Code setup of the project, committed so that every clone, Git work
 | `.claude/rules/` | Topic rules, optionally scoped to paths | Yes |
 | `.claude/skills/` | Project skills (`<name>/SKILL.md`), also usable as `/<name>` | Yes |
 | `.claude/agents/` | Project subagents (`<name>.md`) | Yes |
-| `.claude/worktrees/`, `.claude/checkpoints/`, `.claude/scheduled_tasks.*` | Runtime state written by Claude Code | No (`.gitignore`) |
+| `.claude/worktrees/`, `checkpoints/`, `scheduled_tasks.*`, `routines/.state/`, `mailbox/`, `agent-registry.json`, `agent-memory-local/`, `first-run`, `assistant-daemon-state.json` | Runtime state written by Claude Code | No (`.gitignore`) |
 | `.worktreeinclude` (repository root) | Git-ignored files copied into each new worktree: `.env`, `infra/secrets/`, `docs/` | Yes |
 
 The sub-folders appear with the later M1.1 issues. Committed files contain no secret, token, personal preference or machine-specific path: put those in the two `.local` files.
 
 `docs/` stays git-ignored; `.worktreeinclude` copies it into new worktrees so that the references from `README.md`, `backend/build.gradle.kts` and the workflows resolve there.
+
+### Secrets in worktrees
+
+Each new worktree under `.claude/worktrees/<name>/` gets its own copy of `.env` and of the JWT signing key(s) in `infra/secrets/`, so that it can run the stack. The copies stay git-ignored and `.claude` is excluded from the Docker build context (`.dockerignore`), but they remain on disk as long as the worktree exists. Remove worktrees you no longer need (Claude Code offers it when a `-w` session ends; otherwise `git worktree remove .claude/worktrees/<name>`), and after a key rotation remove the old worktrees rather than leaving the previous key around.
 
 ## Scenario prompts
 

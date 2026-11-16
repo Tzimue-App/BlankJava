@@ -30,9 +30,7 @@ body:
       label: Milestone
       description: Milestone from `docs/roadmap.md` (also set the GitHub milestone).
       options:
-        - M0 — Foundation (v0.1.0)
-        - M1 — User accounts (v0.2.0)
-        - M1.1 Claude enhancement (v0.2.1)
+        - M1.1 — Claude enhancement (v0.2.1)
         - M2 — Hardening & first stable release (v1.0.0)
         - Later — not planned yet
 
