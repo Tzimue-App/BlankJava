@@ -28,6 +28,7 @@ Bump-e2e: 0
 - Root `CLAUDE.md`: checked build, test and lint commands per module, gotchas (generated code, version fields, contract first, forward-only migrations, Docker) and the issue → pull request workflow (#95)
 - Path-scoped Claude rules in `.claude/rules/` (`api.md`, `backend.md`, `frontend.md`, `e2e.md`, `workflows.md`): the module conventions caught late (public routes, contract checks, import boundaries, refresh through `AuthSession`, Selenium journey structure, `pr-gate`), loaded only when Claude works on a matching file (#96)
 - Shared Claude permissions in `.claude/settings.json`: check, lint, build and read-only Git/`gh` commands are allowed; `git push`, `gh pr create`, `gh issue create`, `bump_version.py --start-milestone` and volume-removing Docker commands ask; reading `.env` files (not `.env.example`), `infra/secrets/`, `*.pem` and `*.key`, editing generated code and `gh pr merge` are denied (#97)
+- Claude hooks in `.claude/settings.json` with scripts in `.claude/hooks/`: Prettier on edited `frontend/` files, a block on edits to existing Flyway migrations (a new `V<n>__*.sql` is allowed), and `spotlessApply` + `spotlessCheck` at the end of a turn for `backend/` and `e2e/` when a `.java` or `.gradle.kts` file changed; needs Bash and `jq` (#98)
 
 ---
 
