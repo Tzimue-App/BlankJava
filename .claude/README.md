@@ -49,7 +49,7 @@ Limits: the migration guard covers `Edit` and `Write`, not `Bash` (`sed -i`, `mv
 
 ## Skills
 
-Three skills in `.claude/skills/<name>/SKILL.md` automate the issue and pull request workflow of `.github/ISSUE_GUIDELINES.md`. Each has `disable-model-invocation: true`: it appears in the `/` menu but Claude never starts it by itself, because each one has side effects (a branch, a push, an issue).
+Five skills in `.claude/skills/<name>/SKILL.md`. Three automate the issue and pull request workflow of `.github/ISSUE_GUIDELINES.md`; each has `disable-model-invocation: true`: it appears in the `/` menu but Claude never starts it by itself, because each one has side effects (a branch, a push, an issue).
 
 | Skill | Does | Asks before |
 |---|---|---|
@@ -58,6 +58,13 @@ Three skills in `.claude/skills/<name>/SKILL.md` automate the issue and pull req
 | `/draft-issue <summary>` | Picks the template, writes the draft in `.github/issues/` with Given / when / then criteria | `gh issue create` |
 
 No skill merges: a human merges.
+
+Two more skills only describe how to work, so Claude may load them on its own, restricted by `paths` to the modules they concern. Neither pushes nor files anything.
+
+| Skill | Loads for | Does |
+|---|---|---|
+| `add-endpoint` | `api/**`, `backend/**` | Contract first, Spectral, backend implementation, public routes, slice test with `matchesContract()`, `./gradlew check`, frontend client, `Bump-` values; says which steps belong to an API, a backend and a frontend issue |
+| `e2e-journey` | `e2e/**` | Starts the stack with the commands of `e2e/README.md`, Page Object, `@SeleniumTest` test without `Thread.sleep`, accessibility check, runs the suite and reads the results, adds the *Journeys* row |
 
 ## Scenario prompts
 
