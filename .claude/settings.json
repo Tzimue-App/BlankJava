@@ -1,0 +1,62 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew test*)",
+      "Bash(./gradlew integrationTest*)",
+      "Bash(./gradlew check*)",
+      "Bash(./gradlew spotlessApply*)",
+      "Bash(./gradlew spotlessCheck*)",
+      "Bash(./gradlew compileTestJava*)",
+      "Bash(gradlew.bat test*)",
+      "Bash(gradlew.bat integrationTest*)",
+      "Bash(gradlew.bat check*)",
+      "Bash(gradlew.bat spotlessApply*)",
+      "Bash(gradlew.bat spotlessCheck*)",
+      "Bash(gradlew.bat compileTestJava*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run format)",
+      "Bash(npm run format:check*)",
+      "Bash(npm run test:ci*)",
+      "Bash(npm run build*)",
+      "Bash(npm run generate*)",
+      "Bash(npx --yes @stoplight/spectral-cli@6.17.0 lint api/openapi.yaml*)",
+      "Bash(python -m pytest tests/*)",
+      "Bash(python bump_version.py --check*)",
+      "Bash(python bump_version.py --dry-run*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(gh issue view*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr checks*)",
+      "Bash(gh run view*)",
+      "Bash(gh run download*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(gh pr create*)",
+      "Bash(gh issue create*)",
+      "Bash(python bump_version.py --start-milestone*)",
+      "Bash(docker compose*down*-v*)",
+      "Bash(docker compose*down*--volumes*)",
+      "Bash(docker volume rm*)",
+      "Bash(docker volume prune*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./.env.dev*)",
+      "Read(./.env.prod*)",
+      "Read(./.env.test*)",
+      "Read(./.env.e2e*)",
+      "Read(./infra/secrets/**)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Edit(./backend/build/**)",
+      "Edit(./frontend/projects/web/src/app/core/api/generated/**)",
+      "Edit(**/*.generated.ts)",
+      "Bash(gh pr merge*)"
+    ]
+  }
+}
