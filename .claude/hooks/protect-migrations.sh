@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse (Edit|Write): block any change to an existing Flyway migration. A new file is allowed.
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_jq 2
 
 input="$(cat)"
 file="$(jq -r '.tool_input.file_path // empty' <<<"$input")"

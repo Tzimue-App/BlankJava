@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PostToolUse (Edit|Write): run Prettier on the edited file when it is under frontend/.
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_jq 1
 
 input="$(cat)"
 file="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
