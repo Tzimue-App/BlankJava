@@ -18,7 +18,7 @@ Rules: `.github/ISSUE_GUIDELINES.md` (*Changelog and versions*, *Definition of D
    - `frontend/`: `npm run lint`, `npm run test:ci` and `npm run build`;
    - `e2e/`: `./gradlew check`; the Selenium suite itself runs in CI (add the `run-e2e` label only as the project rules allow, see `.github/ISSUE_GUIDELINES.md` *Labels*);
    - `tests/` or `bump_version.py`: `python -m pytest tests/`.
-5. Check each acceptance criterion of the issue against the diff and the test results. List any that is not met and **stop**.
+5. Check each acceptance criterion of the issue against the diff and the test results. List any that is not met and **stop**. Then call the `reviewer` subagent (`.claude/agents/reviewer.md`, read-only, it does not see this conversation and cannot run Git): pass it the issue text (`gh issue view <issue>`) and the diff (`git diff origin/<milestone-branch>...HEAD`). That diff omits untracked files: list them with `git status --short` and give the reviewer their paths (or commit them first, step 2). Show its findings; **stop** on any that blocks the merge, and show the others in the pull request description under *How to review*.
 6. Update `CHANGELOG.md` `[Unreleased]`:
    - add one line per change under the fitting heading (usually `### ChangeLog` for tooling), ending with `(#<issue>)`, in the style of the existing lines; replace the `_Description: ..._` placeholder only if it is still there;
    - set each `Bump-<component>: <0-3>` for every component whose directory changed (`api`, `backend`, `frontend`, `e2e`). Never lower an existing value: 1 is major, 2 minor, 3 patch, so the most significant is the smallest non-zero number. Tooling-only changes leave all four at 0 unless a component directory changed.
