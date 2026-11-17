@@ -66,6 +66,16 @@ Two more skills only describe how to work, so Claude may load them on its own, r
 | `add-endpoint` | `api/**`, `backend/**` | Contract first, Spectral, backend implementation, public routes, slice test with `matchesContract()`, `./gradlew check`, frontend client, `Bump-` values; says which steps belong to an API, a backend and a frontend issue |
 | `e2e-journey` | `e2e/**` | Starts the stack with the commands of `e2e/README.md`, Page Object, `@SeleniumTest` test without `Thread.sleep`, accessibility check, runs the suite and reads the results, adds the *Journeys* row |
 
+## Subagents
+
+One subagent in `.claude/agents/`.
+
+| Agent | Tools | Does |
+|---|---|---|
+| `reviewer` | `Read, Grep, Glob` (read-only, enforced by Claude Code) | Reviews a change against the acceptance criteria of its issue: criteria implemented (failure paths included), a test that asserts behaviour for each, nothing unrequested, no secret or personal data. Reports file, line, a concrete situation and whether it blocks the merge; no style remarks |
+
+It does not see the conversation and cannot run Git: the caller passes the issue text (`gh issue view <n>`) and the diff (`git diff origin/<milestone-branch>...HEAD`). `/open-pr` calls it after checking the acceptance criteria. To run it by hand, ask Claude to use the `reviewer` agent and give it those two inputs.
+
 ## Scenario prompts
 
 Fixed prompts to rerun in a fresh session at the repository root after each M1.1 issue, to compare how Claude Code behaves before and after the change. Note for each run: the files Claude read, the commands it ran or asked permission for, whether it followed the project conventions, and the result.

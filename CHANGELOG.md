@@ -31,6 +31,7 @@ Bump-e2e: 0
 - Claude skills `add-endpoint` (contract, Spectral, backend, public routes, slice test, check, client, in that order, with the steps of an API, backend and frontend issue) and `e2e-journey` (stack, Page Object, test, accessibility, run, *Journeys* table) in `.claude/skills/`; Claude may load them on its own for work in `api/`, `backend/` or `e2e/` (#100)
 - Claude hooks in `.claude/settings.json` with scripts in `.claude/hooks/`: Prettier on edited `frontend/` files, a block on edits to existing Flyway migrations (a new `V<n>__*.sql` is allowed), and `spotlessApply` + `spotlessCheck` at the end of a turn for `backend/` and `e2e/` when a `.java` or `.gradle.kts` file changed; needs Bash and `jq` (#98)
 - Claude skills in `.claude/skills/`, started by a person only (`disable-model-invocation`): `/start-issue <number>` checks readiness and creates the issue branch from the milestone branch, `/open-pr` runs the checks, updates `CHANGELOG.md` and the `Bump-` lines and asks before pushing and creating the pull request, `/draft-issue <summary>` drafts an issue from the right template and asks before filing it (#99)
+- Read-only `reviewer` subagent in `.claude/agents/reviewer.md` (`Read, Grep, Glob`): checks a change against the acceptance criteria of its issue (failure paths, tests that assert behaviour, nothing unrequested, no secret or personal data) and reports file, line, a concrete situation and whether it blocks the merge; `/open-pr` calls it before the pull request is created (#101)
 
 ---
 
