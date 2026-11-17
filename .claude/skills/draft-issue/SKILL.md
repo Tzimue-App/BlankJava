@@ -12,7 +12,7 @@ Rules: `.github/ISSUE_GUIDELINES.md` (templates, titles, content, milestones) an
 1. If `$ARGUMENTS` is empty, stop and ask for a summary. If it describes a security vulnerability, **stop**: such reports are never issues (*Security → Report a vulnerability*).
 2. Choose the template by the table in the guidelines: bug report (`fix`), feature request (`feat`), improvement (`chore`, `refactor`, `perf`, `security`, `ci`, `docs`, `test`). Read its `.github/ISSUE_TEMPLATE/<template>.yml` and follow its fields and their order.
 3. Look at the code and the existing issues before writing (`gh issue list --state all --search "<keywords>"`): avoid a duplicate and cite real files.
-4. Write the draft in `.github/issues/<milestone-id>-<nn>-<slug>.md` (follow the names already in that folder and the milestone in `docs/roadmap.md`):
+4. Write the draft in `.github/issues/<milestone-id>-<nn>-<slug>.md` (`.github/issues/` is git-ignored and may be empty: take the milestone id and the next number from `docs/roadmap.md`, e.g. `M1-03`):
    - the title as a Conventional Commits line, `<type>(<area>): <outcome>`, with `<area>` one of `api`, `backend`, `frontend`, `e2e`, `db`, `logging`, `infra`, `ci`, `docs`; describe the outcome, not the task;
    - one section per template field, with the template headings;
    - code references as `path/File.java:line`, specs as `docs/technical_analysis.md#section`;

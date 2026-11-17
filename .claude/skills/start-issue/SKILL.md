@@ -14,7 +14,8 @@ Rules of the workflow: `.github/ISSUE_GUIDELINES.md` (*Content* for readiness, *
 3. Check that it is **ready**:
    - the *Proposed solution* (or *Root cause* for a bug) and the *Acceptance criteria* are filled in, not left as the template placeholder;
    - it has a milestone;
-   - every issue named under *Related → Depends on* is merged into the milestone branch: find its pull request with `gh pr list --state merged --search "<n> in:body" --json number,title,body,baseRefName` and keep the one whose body has `Closes #<n>` (a search also matches mere mentions); check that its `baseRefName` is the milestone branch. An open issue is not a sign it is unmerged: issues close only when the milestone reaches `dev`.
+   - every issue named under *Related → Depends on* is merged into the milestone branch: find its pull request with `gh pr list --state merged --search "<n> in:body" --limit 100 --json number,title,body,baseRefName` and keep the one whose body has `Closes #<n>` (a search also matches mere mentions); check that its `baseRefName` is the milestone branch. An open issue is not a sign it is unmerged: issues close only when the milestone reaches `dev`.
+   - a dependency written as a name without `#<n>` is resolved with `gh issue list --state all --search "<name>"`; if it cannot be matched to exactly one issue, **stop** and ask which one.
    - If anything is missing, **stop**: name the missing part or the unmerged dependency. Create no branch.
 4. Find the milestone branch: the milestone title ends with its version (`(v0.2.1)`), so the branch is `v0.2.1-a`. Run `git fetch origin` and check that `origin/<milestone-branch>` exists; stop if not.
 5. Check `git status --short`: tracked changes that are not yours stop the skill (ask what to do). Untracked files such as `bin/` are ignored.
