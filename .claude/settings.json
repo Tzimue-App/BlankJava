@@ -58,5 +58,43 @@
       "Edit(**/*.generated.ts)",
       "Bash(gh pr merge*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-migrations.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Edit(frontend/**)|Write(frontend/**)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-frontend.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/spotless-stop.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
   }
 }
