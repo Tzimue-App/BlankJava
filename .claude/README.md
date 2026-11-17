@@ -47,6 +47,18 @@ Declared in `.claude/settings.json`, scripts in `.claude/hooks/` (Bash, they rea
 Limits: the migration guard covers `Edit` and `Write`, not `Bash` (`sed -i`, `mv`, `rm`); a missing `jq` makes it refuse the edit (fail closed) and the two other hooks skip. The `Stop` hook only sees uncommitted and untracked files, so a Java change committed during the same turn is not formatted: run `./gradlew spotlessApply` before committing. Gradle wrappers are run through `bash`, so the missing executable bit of `e2e/gradlew` does not matter.
 
 
+## Skills
+
+Three skills in `.claude/skills/<name>/SKILL.md` automate the issue and pull request workflow of `.github/ISSUE_GUIDELINES.md`. Each has `disable-model-invocation: true`: it appears in the `/` menu but Claude never starts it by itself, because each one has side effects (a branch, a push, an issue).
+
+| Skill | Does | Asks before |
+|---|---|---|
+| `/start-issue <number>` | Checks the issue is ready (solution, acceptance criteria, dependencies merged into the milestone branch), creates `<type>/<number>-<slug>` from the milestone branch, restates the definition of done | Stops on a missing part or unmerged dependency, creates no branch |
+| `/open-pr` | Runs the checks of the changed modules, updates `CHANGELOG.md` and the `Bump-` lines, runs `bump_version.py --check`, fills the pull request template | `git push` and `gh pr create` |
+| `/draft-issue <summary>` | Picks the template, writes the draft in `.github/issues/` with Given / when / then criteria | `gh issue create` |
+
+No skill merges: a human merges.
+
 ## Scenario prompts
 
 Fixed prompts to rerun in a fresh session at the repository root after each M1.1 issue, to compare how Claude Code behaves before and after the change. Note for each run: the files Claude read, the commands it ran or asked permission for, whether it followed the project conventions, and the result.

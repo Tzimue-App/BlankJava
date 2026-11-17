@@ -29,6 +29,7 @@ Bump-e2e: 0
 - Path-scoped Claude rules in `.claude/rules/` (`api.md`, `backend.md`, `frontend.md`, `e2e.md`, `workflows.md`): the module conventions caught late (public routes, contract checks, import boundaries, refresh through `AuthSession`, Selenium journey structure, `pr-gate`), loaded only when Claude works on a matching file (#96)
 - Shared Claude permissions in `.claude/settings.json`: check, lint, build and read-only Git/`gh` commands are allowed; `git push`, `gh pr create`, `gh issue create`, `bump_version.py --start-milestone` and volume-removing Docker commands ask; reading `.env` files (not `.env.example`), `infra/secrets/`, `*.pem` and `*.key`, editing generated code and `gh pr merge` are denied (#97)
 - Claude hooks in `.claude/settings.json` with scripts in `.claude/hooks/`: Prettier on edited `frontend/` files, a block on edits to existing Flyway migrations (a new `V<n>__*.sql` is allowed), and `spotlessApply` + `spotlessCheck` at the end of a turn for `backend/` and `e2e/` when a `.java` or `.gradle.kts` file changed; needs Bash and `jq` (#98)
+- Claude skills in `.claude/skills/`, started by a person only (`disable-model-invocation`): `/start-issue <number>` checks readiness and creates the issue branch from the milestone branch, `/open-pr` runs the checks, updates `CHANGELOG.md` and the `Bump-` lines and asks before pushing and creating the pull request, `/draft-issue <summary>` drafts an issue from the right template and asks before filing it (#99)
 
 ---
 
