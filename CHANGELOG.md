@@ -32,6 +32,7 @@ Bump-e2e: 0
 - Claude hooks in `.claude/settings.json` with scripts in `.claude/hooks/`: Prettier on edited `frontend/` files, a block on edits to existing Flyway migrations (a new `V<n>__*.sql` is allowed), and `spotlessApply` + `spotlessCheck` at the end of a turn for `backend/` and `e2e/` when a `.java` or `.gradle.kts` file changed; needs Bash and `jq` (#98)
 - Claude skills in `.claude/skills/`, started by a person only (`disable-model-invocation`): `/start-issue <number>` checks readiness and creates the issue branch from the milestone branch, `/open-pr` runs the checks, updates `CHANGELOG.md` and the `Bump-` lines and asks before pushing and creating the pull request, `/draft-issue <summary>` drafts an issue from the right template and asks before filing it (#99)
 - Read-only `reviewer` subagent in `.claude/agents/reviewer.md` (`Read, Grep, Glob`): checks a change against the acceptance criteria of its issue (failure paths, tests that assert behaviour, nothing unrequested, no secret or personal data) and reports file, line, a concrete situation and whether it blocks the merge; `/open-pr` calls it before the pull request is created (#101)
+- Read-only `test-triager` subagent in `.claude/agents/test-triager.md` (`Read, Grep, Glob`, model `sonnet`): classifies each failure of a suite run as product bug, test bug, flaky or environment from the downloaded JUnit XML and Compose logs, with evidence, in under about 40 lines (#102)
 
 ---
 
