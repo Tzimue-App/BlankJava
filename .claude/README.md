@@ -68,13 +68,16 @@ Two more skills only describe how to work, so Claude may load them on its own, r
 
 ## Subagents
 
-One subagent in `.claude/agents/`.
+Subagents in `.claude/agents/`.
 
 | Agent | Tools | Does |
 |---|---|---|
 | `reviewer` | `Read, Grep, Glob` (read-only, enforced by Claude Code) | Reviews a change against the acceptance criteria of its issue: criteria implemented (failure paths included), a test that asserts behaviour for each, nothing unrequested, no secret or personal data. Reports file, line, a concrete situation and whether it blocks the merge; no style remarks |
+| `test-triager` | `Read, Grep, Glob` (read-only), model `sonnet` | Classifies each failure of a test run as product bug, test bug, flaky or environment, from the downloaded JUnit XML and logs (`compose-logs.txt`, screenshots), with the evidence; says "could not determine" instead of guessing; answer under about 40 lines, no code changes |
 
 It does not see the conversation and cannot run Git: the caller passes the issue text (`gh issue view <n>`) and the diff (`git diff origin/<milestone-branch>...HEAD`). `/open-pr` calls it after checking the acceptance criteria. To run it by hand, ask Claude to use the `reviewer` agent and give it those two inputs.
+
+`test-triager` cannot run commands either: the caller downloads the artifacts with `gh run download <run-id> --dir <temporary-folder>` and passes the folder path. To run it, ask Claude to use the `test-triager` agent on that folder.
 
 ## Scenario prompts
 
