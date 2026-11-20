@@ -49,3 +49,6 @@ CLAUDE.local.md
 .claude/agent-memory-local/
 .claude/first-run
 .claude/assistant-daemon-state.json
+
+# Local audit reports (claude-env-auditor, /audit-env); never committed
+.audits/
