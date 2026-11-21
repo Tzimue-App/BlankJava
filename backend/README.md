@@ -115,6 +115,15 @@ The tests lower the cost (`src/test/resources/config/application.yaml`); `Passwo
 
 **Tuning the cost on a new host.** One hash should take 100–300 ms on the production host: enough to slow down an offline attack, little enough for a login. Raise the memory first (it is what makes GPU attacks expensive), then the iterations; keep parallelism at 1 unless the host has cores to spare per login. Measure on the host itself, then set the properties (environment variables `BLANKJAVA_SECURITY_PASSWORD_ARGON2_MEMORYKIB`, `BLANKJAVA_SECURITY_PASSWORD_ARGON2_ITERATIONS`: Spring drops the dashes). Existing hashes keep working: each one is checked with the parameters it was made with. Memory is reserved per concurrent hash: 19 MiB × the number of simultaneous logins must fit in the container's memory.
 
+## Database migrations
+
+Flyway migrations live in `src/main/resources/db/migration/` and are forward-only: a schema change is a new `V<n>__<name>.sql`, never an edit of an existing one. Flyway stores a checksum of each applied migration, so a changed, renamed or deleted one fails validation on every database that already ran it.
+
+Two checks enforce it:
+
+- **Pull request suite:** the backend job's *Applied Flyway migrations are unchanged* step diffs the PR with its base branch and fails on any modified, deleted, renamed or retyped file in that folder, naming each one. Added files pass. It catches every author and tool.
+- **Claude hook:** `.claude/hooks/protect-migrations.sh` blocks Claude's `Edit` and `Write` on an existing migration (not shell commands).
+
 ## Tests
 
 | Task | Content |
