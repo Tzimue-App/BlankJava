@@ -78,7 +78,6 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Edit(frontend/**)|Write(frontend/**)",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-frontend.sh\"",
             "timeout": 30
           }
