@@ -11,7 +11,7 @@ significant bump (a PR may raise a value, never lower it).
 The project version comes from the milestone branch (vX.Y.Z-a, project X.Y.Z-alpha).
 -->
 Bump-api: 0
-Bump-backend: 0
+Bump-backend: 3
 Bump-frontend: 0
 Bump-e2e: 0
 
@@ -34,6 +34,7 @@ Bump-e2e: 0
 - Read-only `reviewer` subagent in `.claude/agents/reviewer.md` (`Read, Grep, Glob`): checks a change against the acceptance criteria of its issue (failure paths, tests that assert behaviour, nothing unrequested, no secret or personal data) and reports file, line, a concrete situation and whether it blocks the merge; `/open-pr` calls it before the pull request is created (#101)
 - Read-only `test-triager` subagent in `.claude/agents/test-triager.md` (`Read, Grep, Glob`, model `sonnet`): classifies each failure of a suite run as product bug, test bug, flaky or environment from the downloaded JUnit XML and Compose logs, with evidence, in under about 40 lines (#102)
 - Read-only Claude environment auditor, started by `/audit-env [sub-scope]` only: the background `claude-env-auditor` subagent inventories `CLAUDE.md`, rules, skills, commands, agents, hooks, settings, MCP and plugins against `.claude/audit/criteria.md` and the current official docs, and writes one English report per run in the git-ignored `.audits/claude-env/`; it may delegate component cards to the read-only `claude-env-analyst` (`sonnet`); its `PreToolUse` hook `audit-write-guard.sh` limits Write and Edit to that folder, Bash to read-only commands and spawned subagents to the analyst (#122)
+- Pull request suite: the backend job fails a PR that modifies, deletes, renames or retypes an applied Flyway migration in `backend/src/main/resources/db/migration/` and names each file; a new `V<n>__*.sql` passes. Covers every author and tool, unlike the Claude hook; documented in `backend/README.md` *Database migrations* (#117)
 
 ---
 
