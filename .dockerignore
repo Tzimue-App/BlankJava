@@ -15,6 +15,10 @@ tests
 **/*.log
 .env
 .env.*
+**/.env
+**/.env.*
+# Claude Code configuration and its worktrees (full copies of the repository, with .env and keys)
+.claude
 # JWT signing keys: mounted at runtime, never in an image
 infra/secrets
 **/*.pem

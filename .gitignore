@@ -31,6 +31,24 @@ logs/
 # Python
 __pycache__/
 
-# doc
+# doc (stays ignored, issue #94; copied into new worktrees by .worktreeinclude)
 docs/
 .github/issues/
+
+# Claude Code: the shared configuration (CLAUDE.md, .claude/) is committed (.claude/README.md);
+# personal files and runtime state are not
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+.claude/checkpoints/
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
+.claude/routines/.state/
+.claude/mailbox/
+.claude/agent-registry.json
+.claude/agent-memory-local/
+.claude/first-run
+.claude/assistant-daemon-state.json
+
+# Local audit reports (claude-env-auditor, /audit-env); never committed
+.audits/
