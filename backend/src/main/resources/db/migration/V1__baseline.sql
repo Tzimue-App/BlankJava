@@ -1,3 +1,5 @@
 -- Baseline of the BlankJava schema.
 -- Intentionally empty: it marks version 1 so every later change is a reviewed, versioned migration
 -- (docs/technical_analysis.md §4.4). Migrations are forward-only and never edited once released.
+
+-- throwaway edit for #117, do not merge
