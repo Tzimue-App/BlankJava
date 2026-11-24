@@ -16,5 +16,5 @@ Read-only: never edit a file, switch a branch, push, comment, label or run anoth
 | Sub-issue | Title | State | Pull request | Rounds | agent-review | Waits for |
 |---|---|---|---|---|---|---|
 
-   then: the issue pull request into the milestone branch, if any (draft or ready, rounds); the `needs-human` questions with their links; the minor questions posted on the milestone `questions` issue for this issue.
+   then: the issue pull request into the milestone branch, if any (draft or ready, rounds); the `need-manual` questions with their links; the minor questions posted on the milestone `Questions` issue for this issue.
 4. End with the next action, in one line: who does what (for example "merge #142", "answer the question on #143", "run `/implement-issue $ARGUMENTS`").

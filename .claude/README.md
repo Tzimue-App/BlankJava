@@ -80,7 +80,7 @@ Roles: the orchestrator (`/implement-issue`, in the main session) decides and is
 3. Per sub-issue: branch `<type>/<issue>-<sub-issue>-<slug>`, `implementer`, draft pull request into the issue branch, review rounds (comment `### Review round k` with each finding's decision, models and tokens), `agent-review` status, merge (by the person until #131).
 4. Issue pull request: `/simplify`, checks, `CHANGELOG.md` and `Bump-` lines, then review rounds with `/code-review high`, `/security-review` and `reviewer` against the parent issue. A human merges it.
 
-Interrupted run (usage limit, closed session): run the same `/implement-issue <n>` again. `implementer` commits after each green step, and the orchestrator works out the state from merged and open pull requests, round comments and branches. Questions: critical ones put `needs-human` on the pull request and stop that issue only; answer in a pull request comment and rerun. Minor ones go to the milestone issue labelled `questions`.
+Interrupted run (usage limit, closed session): run the same `/implement-issue <n>` again. `implementer` commits after each green step, and the orchestrator works out the state from merged and open pull requests, round comments and branches. Questions: critical ones put `need-manual` on the pull request and stop that issue only; answer in a pull request comment and rerun. Minor ones go to the milestone issue titled `Questions`.
 
 Measures: each round comment records the model and the token count of each subagent run (the counts the Agent tool returns; `n/a` for skills such as `/code-review`, which give none). Over several issues this compares models on real work; use `/usage` and the `session-report` plugin for the whole session.
 
