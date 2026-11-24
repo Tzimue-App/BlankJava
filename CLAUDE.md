@@ -45,5 +45,6 @@ Tooling, from the repository root:
 - One issue = one branch `<type>/<issue>-<slug>` (e.g. `feat/14-register-page`), created from the milestone branch `vX.Y.Z-a`.
 - One pull request into the milestone branch, with `Closes #<issue>`.
 - Each PR adds its notes to `CHANGELOG.md` `[Unreleased]` and sets `Bump-<component>:` for every component it changes.
+- Large issues are split into sub-issues: branch `<type>/<issue>-<sub-issue>-<slug>` from the issue branch, PR into the issue branch, no `CHANGELOG.md` change; `/implement-issue <n>` runs them.
 - A human merges; never merge a pull request yourself.
 - Everything else: `.github/ISSUE_GUIDELINES.md`.
