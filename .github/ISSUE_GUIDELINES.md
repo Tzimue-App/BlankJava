@@ -20,7 +20,7 @@ Security vulnerabilities are **never** filed as issues: use *Security → Report
 ## Sub-issues
 
 - An issue may be split into GitHub **sub-issues**, each one sized to be implemented and reviewed in one go, with its own acceptance criteria and the parent issue's template. Order them with GitHub's *blocked by* links (`gh issue edit <n> --add-blocked-by <m>`); `/implement-issue` reads those links and does the sub-issues one after the other, in that order.
-- A sub-issue has its own branch `<type>/<issue>-<sub-issue>-<slug>` (GitHub numbers, e.g. `feat/14-57-backend`), created from the issue branch, and one pull request into the issue branch with `Closes #<sub-issue>`. It is squash-merged into the issue branch; only the issue pull request goes into the milestone branch.
+- A sub-issue has its own branch `<type>/<issue>-<sub-issue>-<slug>` (GitHub numbers, e.g. `feat/14-57-backend`), created from the issue branch, and one pull request into the issue branch with `Closes #<sub-issue>`. It is squash-merged into the issue branch; only the issue pull request goes into the milestone branch. The sub-issue is closed when its pull request is merged into the issue branch (`Closes #` only acts on the default branch, so `/implement-issue` closes it); this unblocks the sub-issues it blocks.
 - A sub-issue pull request carries no `CHANGELOG.md` or `Bump-` change: the issue pull request writes them once.
 - Questions an agent cannot settle: a critical one puts the `need-manual` label on the pull request and stops that issue; a minor one goes to the milestone issue labelled `question`, worked through at the end of the milestone.
 

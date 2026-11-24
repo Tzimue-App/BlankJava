@@ -29,7 +29,7 @@ For each sub-issue, the first matching row gives its state:
 
 | Fact (GitHub or git) | State |
 |---|---|
-| A merged pull request into the issue branch whose body has `Closes #<n>` (`gh pr list --base <issue-branch> --state merged --search "<n> in:body" --json number,body`) | done |
+| A merged pull request into the issue branch whose body has `Closes #<n>` (`gh pr list --base <issue-branch> --state merged --search "<n> in:body" --json number,body`) | done (if the sub-issue is still open, close it as in step 4.5) |
 | An open pull request with the `need-manual` label | waiting for the person |
 | An open pull request whose head commit has the `agent-review` status `success` | waiting for merge |
 | An open pull request otherwise | in review: the next round is 1 + the number of `### Review round` comments |
@@ -54,12 +54,19 @@ An issue without sub-issues is worked on the issue branch itself: `git switch <i
 3. **Review round** `k` (from step 2's count, at most 3):
    - Call `reviewer` with the sub-issue text and `git diff origin/<issue-branch>...HEAD`; from round 2, also the round number, the rejected findings with their reasons, the open findings and `git diff <last reviewed commit>..HEAD`.
    - Run the `code-review` skill at level `medium` on the pull request (`medium <pr-number>`), without `--comment` and without `--fix`.
-   - **Triage** every finding yourself: `fix` (a real problem in the scope of the sub-issue), `reject` (out of scope, not a problem, or already rejected; write the reason), or `bucket` (needs a decision of the person: post it as in step 4.1, minor, or step 6, critical).
+   - **Triage** every finding yourself, by the rules below: `fix`, `reject` or `bucket` (needs a decision of the person: post it as in step 4.1, minor, or step 6, critical).
    - Post the round comment (format below).
-   - Stop the loop when no `important` finding is left to fix, or after round 3.
+   - Stop the loop when no `important` finding is left to fix, or after round 3. Before stopping, if findings of severity `nit` were triaged `fix`, call `implementer` once more for them and post a `### Fix round k` comment; that pass is not reviewed again and does not count as a round.
    - Otherwise call `implementer` with the findings to fix (ids, file, line, situation) and the parent issue text, push its commits, post `### Fix round k` (commits and the findings each one fixes, model, tokens), and start the next round.
 4. **Status.** On the head commit: `gh api repos/{owner}/{repo}/statuses/$(git rev-parse HEAD) -f state=<success|failure> -f context=agent-review -f description="<n> rounds, <f> fixed, <r> rejected, <b> in the bucket"`. `success` only when no `important` finding is left open; after 3 rounds with an `important` finding open, `failure`, add the `need-manual` label and list the open findings in a comment. Then `gh pr ready <pr>` on `success`.
-5. **Wait for the merge.** A sub-issue pull request is merged by GitHub (auto-merge on `agent-review`, #131) or by the person. Check `gh pr view <pr> --json state` every 30 seconds for up to 15 minutes, with one background command. Merged: back to section 2. Not merged: stop and tell the person to merge it (or check auto-merge) and to run `/implement-issue $ARGUMENTS` again.
+5. **Wait for the merge.** A sub-issue pull request is merged by GitHub (auto-merge on `agent-review`, #131) or by the person. Check `gh pr view <pr> --json state` every 30 seconds for up to 15 minutes, with one background command. Merged: close the sub-issue if it is still open (`gh issue close <n> --comment "Merged into <issue-branch> by #<pr> (/implement-issue)."`; `Closes #<n>` only acts on the default branch, and an open sub-issue keeps the next one *blocked* in GitHub), then back to section 2. Not merged: stop and tell the person to merge it (or check auto-merge) and to run `/implement-issue $ARGUMENTS` again.
+
+Triage rules:
+
+- `fix`: the finding is right and inside the acceptance criteria of the sub-issue (of the parent issue in section 7). A `nit` that is right and cheap to change is fixed too: it does not keep the loop going, but it does not disappear.
+- `reject` only for one of these reasons, written in the decision: **wrong** (say what in the code or the issue shows it), **out of scope** (name the acceptance criterion it goes beyond, or the other sub-issue that covers it), or **already rejected** (give the round and id). The severity is never a reason: "nit" alone is not a rejection.
+- A finding raised by both `reviewer` and `code-review` cannot be rejected as out of scope: `fix` it, or `bucket` it when it needs a decision of the person.
+- When in doubt between `reject` and `bucket`, choose `bucket`.
 
 Round comment, posted on the sub-issue pull request (on the issue pull request in section 7):
 
@@ -92,7 +99,7 @@ When every sub-issue is done (or for an issue without sub-issues, after step 4.1
 1. `git switch <issue-branch>` and `git pull --ff-only`.
 2. Run the `simplify` skill on the changes of the issue (`git diff origin/<milestone-branch>...HEAD`). It changes code: run the checks of the changed modules, then commit (`refactor: simplify ... (#$ARGUMENTS)`). Skip if a previous run already did (a commit `refactor: simplify` exists since the last sub-issue merge).
 3. Follow steps 4, 6 and 7 of `.claude/skills/open-pr/SKILL.md` (checks, `CHANGELOG.md` and `Bump-` lines, `bump_version.py --check`). If `origin/<milestone-branch>` moved, merge it into the issue branch first; a conflict in `CHANGELOG.md` is resolved by keeping the lines of both sides.
-4. Show the person the pull request title and description (step 8 of `/open-pr`, plus a *Review history* table: one row per sub-issue pull request with its rounds, fixed, rejected, bucket, and the open questions) and **ask before pushing and creating the pull request**. Then `git push` and `gh pr create --draft --base <milestone-branch>`.
+4. Show the person the pull request title and description (step 8 of `/open-pr`, plus a *Review history* table: one row per sub-issue pull request with its rounds, fixed, rejected, bucket, and the open questions; then a *Rejected findings* list with **every** rejected finding of every round, sub-issue pull requests included: id, pull request, file:line, the finding and the reason, so that the person can overrule a rejection in the review) and **ask before pushing and creating the pull request**. Then `git push` and `gh pr create --draft --base <milestone-branch>`.
 5. Review rounds as in step 4.3, three rounds shared by all reviewers: `reviewer` with the **parent issue** and `git diff origin/<milestone-branch>...HEAD`, the `code-review` skill at level `high` on the pull request, and the `security-review` skill. Fixes by `implementer`, pushed after each round.
 6. `gh pr ready <pr>`, then stop: a human reviews and merges into the milestone branch. Report the pull request URL, the rounds, and what is left in the bucket.
 

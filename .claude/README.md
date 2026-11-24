@@ -77,7 +77,9 @@ Roles: the orchestrator (`/implement-issue`, in the main session) decides and is
 
 1. `/start-issue <n>` in the main checkout: readiness, issue branch, push (asks), and the command to start the run.
 2. In a new terminal at the repository root: `claude -w issue-<n> "/implement-issue <n>"` (its own worktree).
-3. Per sub-issue: branch `<type>/<issue>-<sub-issue>-<slug>`, `implementer`, draft pull request into the issue branch, review rounds (comment `### Review round k` with each finding's decision, models and tokens), `agent-review` status, merge (by the person until #131).
+3. Per sub-issue: branch `<type>/<issue>-<sub-issue>-<slug>`, `implementer`, draft pull request into the issue branch, review rounds (comment `### Review round k` with each finding's decision, models and tokens), `agent-review` status, merge (by the person until #131), then the sub-issue is closed.
+
+Triage: the orchestrator fixes, rejects or sends each finding to the person. The severity is never a reason to reject: a rejection must say the finding is wrong, out of scope (naming the criterion) or already rejected, a finding raised by both `reviewer` and `/code-review` is never rejected as out of scope, and the issue pull request lists every rejected finding so that the person can overrule it.
 4. Issue pull request: `/simplify`, checks, `CHANGELOG.md` and `Bump-` lines, then review rounds with `/code-review high`, `/security-review` and `reviewer` against the parent issue. A human merges it.
 
 Interrupted run (usage limit, closed session): run the same `/implement-issue <n>` again. `implementer` commits after each green step, and the orchestrator works out the state from merged and open pull requests, round comments and branches. Questions: critical ones put `need-manual` on the pull request and stop that issue only; answer in a pull request comment and rerun. Minor ones go to the milestone issue labelled `question`.
