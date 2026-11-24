@@ -16,6 +16,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+backend/bin/*
+
 # Local configuration and secrets
 .env
 # JWT signing keys (infra/README.md); never committed
