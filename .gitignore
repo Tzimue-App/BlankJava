@@ -16,7 +16,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-backend/bin/*
+# Eclipse metadata and output, written by the Java language server (jdtls) used by Claude Code
+.classpath
+.project
+.factorypath
+.settings/
+backend/bin/
+e2e/bin/
 
 # Local configuration and secrets
 .env

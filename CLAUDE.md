@@ -40,6 +40,15 @@ Tooling, from the repository root:
 - Flyway migrations (`backend/src/main/resources/db/migration/`) are forward-only: add a new `V<n>__<name>.sql`, never edit an existing one.
 - Integration tests and the Selenium suite need Docker running.
 
+## LSP tool
+
+The `LSP` tool (jdtls for Java, tsserver for TypeScript) can return incomplete results without any warning. Use it to go faster, never as proof:
+
+- An empty or short result proves nothing. Before concluding that a symbol is unused or untested, and before renaming, moving or deleting one, confirm with `Grep`.
+- Results under git-ignored paths are dropped by Claude Code, so `goToDefinition`, `findReferences` and `workspaceSymbol` never reach `backend/build/generated/` (anthropics/claude-code#101476). For a generated type, `hover` gives its file: `Read` it.
+- In the frontend, specs are found only once a spec file is open (`tsconfig.json` only references `tsconfig.app.json` and `tsconfig.spec.json`). Call `documentSymbol` on the neighbouring `.spec.ts` before `findReferences`.
+- The servers only see the changes made with `Edit` and `Write`. After a shell command that changes files (`git checkout`, `git rebase`, `git pull`, `./gradlew spotlessApply`, `npm run format`, code generation), they keep the old content and their line numbers are wrong (anthropics/claude-code#76870). Check positions with `Read` or `Grep` before relying on them; only a new session reloads the servers.
+
 ## Workflow
 
 - One issue = one branch `<type>/<issue>-<slug>` (e.g. `feat/14-register-page`), created from the milestone branch `vX.Y.Z-a`.

@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Implements one sub-issue, or a list of review findings, on the current branch, runs the checks and commits locally. Called by /implement-issue only.
-tools: Read, Edit, Write, Grep, Glob, Bash
+tools: Read, Edit, Write, Grep, Glob, Bash, LSP
 model: inherit
 ---
 
@@ -27,6 +27,7 @@ Rules:
 - Run the checks of each module you changed, as listed in `CLAUDE.md` (Commands): `./gradlew check` for `backend/` and `e2e/` (needs Docker; if Docker is not running, say so in the report instead of skipping silently), `npm run lint`, `npm run test:ci` and `npm run build` for `frontend/`, the Spectral command for `api/`, `python -m pytest tests/` for `tests/` and `bump_version.py`. Fix what fails; never lower a threshold or skip a test to make it pass.
 - Commit locally after each step that leaves the checks green, in Conventional Commits style ending with `(#<sub-issue>)`, so that an interrupted run loses little. Format Java with `./gradlew spotlessApply` before committing.
 - When fixing review findings, fix only the findings listed, one commit per finding or group of findings, with the finding ids in the commit body.
+- Use the `LSP` tool as `CLAUDE.md` (*LSP tool*) says. Before renaming, moving or deleting a symbol, find its usages with `Grep` too, specs and generated code included. Your own `spotlessApply`, `npm run format` and builds change files behind the servers' back: re-check positions with `Read` or `Grep` after them.
 - When something cannot be decided from the issue and the code, choose the safest reasonable option if the choice is easy to change later, write it down as an assumption, and go on. If the choice would be costly to undo (contract shape, data model, security behaviour, user-visible wording not given), stop and report it as a critical question.
 
 Report, nothing else:
