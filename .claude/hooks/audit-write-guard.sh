@@ -24,6 +24,17 @@ allow() {
   exit 0
 }
 
+# ignored_listing: for git status and ls-files, refuses `--ignored`, its unique prefixes (git accepts
+# them, from `--i`) and the other `--ign*` options. Reads `w`.
+ignored_listing() {
+  local a
+  for a in "${w[@]:2}"; do
+    [[ "$a" == --ign* || ( "$a" == --?* && "--ignored" == "${a%%=*}"* ) ]] \
+      && block "git option '$a' refused (it lists the ignored secret files)."
+  done
+  return 0
+}
+
 # tokenize <command>: splits a one-line command into the words bash would see after quote removal,
 # and into pipe segments. Fills `words` and `seg_start`: the index in `words` of the first word of
 # each segment, then the word count (segment s ends before words[seg_start[s+1]]). Single quotes
@@ -136,7 +147,7 @@ def win32: [., names(trimmed), names(split(":")[0] // ""), names(split(":")[0] /
 
 # jq program reading one word per line (the project root as $root, the hook input as $in) and
 # printing the first one that, resolved from the hook's cwd, is outside the project root (a word
-# starting with `~` counts as outside). `/c/x` is read as `c:/x`; a Windows root compares case folded.
+# starting with `~` or drive-relative, like `C:x`, counts as outside). `/c/x` is read as `c:/x`; a Windows root compares case folded.
 # shellcheck disable=SC2016
 outside_root='
 def winpath: slashes | sub("^/(?<d>[A-Za-z])/"; "\(.d):/");
@@ -146,7 +157,7 @@ def winpath: slashes | sub("^/(?<d>[A-Za-z])/"; "\(.d):/");
 | ($in.cwd // $root | winpath) as $c
 | first(inputs as $w
     | $w | winpath
-    | if startswith("~") then $w
+    | if startswith("~") or test("^[A-Za-z]:([^/]|$)") then $w
       else (if test("^(/|[A-Za-z]:/)") then . else $c + "/" + . end) | resolve
         | (if $win then ascii_downcase else . end)
         | select(. != $r and (startswith($r + "/") | not)) | $w
@@ -198,11 +209,9 @@ case "$tool" in
           done
           ;;
         jq)
-          # jq modules (import, include, -L) load files that the path check below cannot see.
-          from_file=0
+          from_file=0 filter_k=0
           for a in "${w[@]:1}"; do
             case "$a" in -L* | --library-path*) block "jq option '$a' refused." ;; esac
-            [[ "$a" =~ (^|[^A-Za-z0-9_$])(import|include)([^A-Za-z0-9_]|$) ]] && block "jq import and include are refused."
             [[ "$a" == --from-file || "$a" =~ ^-[^-]*f ]] && from_file=1
           done
           # The filter is the first argument that is neither an option nor an option's value. It is
@@ -218,9 +227,15 @@ case "$tool" in
                 --unbuffered | --exit-status | --seq | --stream | --stream-errors | --tab | --binary | \
                 --args | --jsonargs) ;;
               -*) [[ "$a" =~ ^-[nrjascCMSeRhV]+$ ]] || break ;;
-              *) exempt+=($((seg_start[s] + k))); break ;;
+              *) exempt+=($((seg_start[s] + k))); filter_k=$k; break ;;
             esac
             k=$((k + 1))
+          done
+          # jq modules (import, include) load files that the path check cannot see. Only the filter
+          # is checked when it is known; otherwise (or with -f) every argument is.
+          if [ "$filter_k" -gt 0 ]; then kw=("${w[filter_k]}"); else kw=("${w[@]:1}"); fi
+          for a in "${kw[@]}"; do
+            [[ "$a" =~ (^|[^A-Za-z0-9_$])(import|include)([^A-Za-z0-9_]|$) ]] && block "jq import and include are refused."
           done
           ;;
         claude)
@@ -228,17 +243,39 @@ case "$tool" in
           ;;
         git)
           case "${w[1]:-}" in
-            status | log | rev-parse | check-ignore | show) ;;
+            log | rev-parse | check-ignore | show) ;;
+            status) ignored_listing ;;
             diff)
-              # `git diff` on a path outside the repository is an implicit --no-index (any file).
+              # Implicit --no-index (diff any two files): git checks it when exactly two arguments
+              # remain after the leading options (and a `--`), and one is outside the repository.
+              k=2 after_dd=0
+              while [ "$k" -lt "${#w[@]}" ] && [[ "${w[k]}" == -* ]]; do
+                if [ "${w[k]}" = -- ]; then after_dd=1; k=$((k + 1)); break; fi
+                k=$((k + 1))
+              done
+              if [ $((${#w[@]} - k)) -eq 2 ] \
+                && { [ "$after_dd" = 1 ] || [[ "${w[k]}" != -* && "${w[k + 1]}" != -* ]]; }; then
+                block "git diff with exactly two revisions or paths is refused (implicit --no-index): write 'git diff a..b' or 'git diff a b --'."
+              fi
+              # Second layer: every path word must stay inside the project, with no `..` segment.
+              after_dd=0
               for a in "${w[@]:2}"; do
-                case "$a" in -*) ;; *) diff_words+=("$a") ;; esac
+                if [ "$after_dd" = 0 ] && [ "$a" = -- ]; then after_dd=1; continue; fi
+                [ "$after_dd" = 1 ] || [[ "$a" != -* ]] || continue
+                [[ "/${a//\\//}/" == */../* ]] && block "git diff: '$a' has a '..' segment."
+                diff_words+=("$a")
               done
               ;;
             ls-files)
+              ignored_listing
+              exclude_standard=0 others=0
               for a in "${w[@]:2}"; do
                 [[ "$a" =~ ^-[^-]*i ]] && block "git ls-files -i is refused (it lists the ignored secret files)."
+                [ "$a" = --exclude-standard ] && exclude_standard=1
+                [[ "$a" =~ ^-[^-]*o || ( "$a" == --?* && "--others" == "${a%%=*}"* ) ]] && others=1
               done
+              [ "$others" = 0 ] || [ "$exclude_standard" = 1 ] \
+                || block "git ls-files -o is refused without --exclude-standard (it lists the ignored secret files)."
               ;;
             branch)
               for a in "${w[@]:2}"; do
@@ -253,7 +290,9 @@ case "$tool" in
           for a in "${w[@]}"; do
             case "$a" in
               --output* | --ext-diff | --textconv | --no-index) block "git option '$a' refused." ;;
-              --ign*) block "git option '$a' refused (it lists the ignored secret files)." ;;
+              # Pathspec globs and magic reach names the literal path check does not see.
+              *'*'* | *'?'* | *'['* | :/* | ':!'* | ':^'* | ':('*)
+                block "git: '$a' refused (pathspec glob or magic)." ;;
             esac
           done
           ;;

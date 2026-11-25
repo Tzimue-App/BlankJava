@@ -202,7 +202,7 @@ class AuditGuardTest(unittest.TestCase):
             ),
         )
         self.assert_blocked(bash_input("git diff ../../x.txt y.txt", ROOT_FWD + "/infra"))
-        self.assert_allowed(bash_input("git diff ../x.txt", ROOT_FWD + "/infra"))
+        self.assert_allowed(bash_input("git diff x.txt", ROOT_FWD + "/infra"))
 
     def test_r1_5_recursive_and_ignored_listings_are_blocked(self):
         self.assert_all(
@@ -216,7 +216,7 @@ class AuditGuardTest(unittest.TestCase):
                 "git ls-files --ignored --others --exclude-standard",
                 "git ls-files -oi --exclude-standard",
             ),
-            allowed=("ls -la infra", "git status --short", "git ls-files -o"),
+            allowed=("ls -la infra", "git status --short", "git ls-files -o --exclude-standard"),
         )
 
     def test_r1_6_jq_filter_is_not_read_as_a_path(self):
@@ -252,6 +252,94 @@ class AuditGuardTest(unittest.TestCase):
     def test_r1_9_long_commands_are_blocked(self):
         self.assert_blocked(bash_input("ls " + "a" * 5000))
         self.assert_allowed(bash_input("ls " + "a" * 4093))
+
+    # Review round 2 of #123
+
+    def test_r2_1_git_diff_two_arguments_and_drive_relative_paths_are_blocked(self):
+        self.assert_all(
+            blocked=(
+                "git diff ENV~1 C:README.md",
+                "git diff C:../../x.txt .claude/settings.json",
+                "git diff a b",
+                "git diff --stat a b",
+                "git diff -- x y",
+                "git diff HEAD -- C:x.txt",
+            ),
+            allowed=(
+                "git diff a..b",
+                "git diff a b --",
+                "git diff HEAD~1 -- .claude/settings.json",
+                "git diff --stat",
+                "git diff origin/v0.2.1-a...HEAD --stat",
+            ),
+        )
+
+    def test_r2_2_git_diff_dot_dot_segment_is_blocked(self):
+        self.assert_all(
+            blocked=(
+                "git diff ../BlankJava-123/ENV~1 README.md",
+                "git diff HEAD -- ../BlankJava-123/README.md",
+                "git diff HEAD -- 'docs\\..\\README.md'",
+            ),
+            allowed=("git diff HEAD -- docs/README.md",),
+        )
+
+    def test_r2_3_git_diff_words_after_double_dash_are_paths(self):
+        self.assert_all(
+            blocked=(
+                "git diff -- -a/../../../.ssh/id_ed25519 README.md",
+                "git diff HEAD -- -a/../../x README.md",
+                "git diff HEAD -- /etc/hosts",
+            ),
+            allowed=("git diff HEAD -- -a.txt README.md",),
+        )
+
+    def test_r2_4_git_ls_files_others_needs_exclude_standard(self):
+        self.assert_all(
+            blocked=("git ls-files -o", "git ls-files --others", "git ls-files -co", "git ls-files --oth"),
+            allowed=("git ls-files -o --exclude-standard", "git ls-files --others --exclude-standard", "git ls-files"),
+        )
+
+    def test_r2_5_prefixes_of_ignored_are_blocked(self):
+        self.assert_all(
+            blocked=(
+                "git ls-files --ig -o --exclude-standard",
+                "git status --i",
+                "git status --ignor",
+                "git status --ignored=matching",
+                "git ls-files --ignore",
+            ),
+            allowed=("git status --short", "git status -s"),
+        )
+
+    def test_r2_6_git_pathspec_globs_and_magic_are_blocked(self):
+        self.assert_all(
+            blocked=(
+                "git log -p -- 'infra/secr*'",
+                "git log -p -- 'infra/secret?/x'",
+                "git log -p -- 'infra/[s]ecrets'",
+                "git show HEAD -- ':(icase)INFRA/SECRETS'",
+                "git log -p -- ':/infra'",
+                "git log -p -- ':!README.md'",
+                "git log -p -- ':^README.md'",
+            ),
+            allowed=("git show HEAD:.claude/settings.json", "git log -p -- README.md", "git log --format='%h %s' -3"),
+        )
+
+    def test_r2_7_ignore_options_of_other_git_commands_are_allowed(self):
+        self.assert_all(
+            allowed=("git diff --ignore-space-change HEAD~1", "git log -p --ignore-all-space -1"),
+        )
+
+    def test_r2_8_jq_keyword_check_only_on_the_filter(self):
+        self.assert_all(
+            blocked=(
+                "jq 'import \"x\" as $x; .' f.json",
+                "jq -f prog.jq docs/include/x.json",
+                "jq --unknown . docs/include/x.json",
+            ),
+            allowed=("jq . docs/include/x.json", "jq -r .a docs/import/x.json"),
+        )
 
     # Non-regression: the cases of #122
 
