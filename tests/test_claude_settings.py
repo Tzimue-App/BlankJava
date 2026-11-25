@@ -168,17 +168,23 @@ class SettingsTest(unittest.TestCase):
                 self.assertFalse(regex.match(".env.bak"), glob)
 
     def test_shell_commands_on_secret_files_denied(self):
-        for rule in (
-            "Bash(cat *.env*)",
-            "Bash(cat *infra/secrets*)",
-            "Bash(type *.env*)",
-            "Bash(Get-Content *.env*)",
-            "Bash(git *diff*--no-index*)",
-            "PowerShell(Get-Content *.env*)",
-            "PowerShell(cat *infra/secrets*)",
-            "PowerShell(cp *.env*)",
-        ):
-            self.assertIn(rule, self.deny)
+        commands = {
+            "Bash": (
+                "cat", "type", "head", "tail", "less", "more", "Get-Content",
+                "grep", "sed", "awk", "cp", "base64",
+            ),
+            "PowerShell": (
+                "Get-Content", "gc", "cat", "type", "Select-String", "sls",
+                "Copy-Item", "cp", "copy", "cpi", "more",
+            ),
+        }
+        targets = (".env", "infra/secrets", "infra\\secrets", ".pem", ".key")
+        for tool, names in commands.items():
+            for command in names:
+                for target in targets:
+                    with self.subTest(tool=tool, command=command, target=target):
+                        self.assertIn(f"{tool}({command} *{target}*)", self.deny)
+        self.assertIn("Bash(git *diff*--no-index*)", self.deny)
 
     def test_git_diff_no_index_denied_after_git_options(self):
         # A Bash rule's * matches any text, spaces included
