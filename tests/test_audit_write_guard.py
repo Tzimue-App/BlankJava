@@ -150,6 +150,109 @@ class AuditGuardTest(unittest.TestCase):
                 json.dump({"permissions": {"deny": ["Edit(//**/.env)"]}}, f)
             self.assert_blocked(bash_input("git status"), guard)
 
+    # Review round 1 of #123
+
+    def assert_all(self, blocked=(), allowed=(), cwd=ROOT_FWD):
+        for command in blocked:
+            with self.subTest(blocked=command):
+                self.assert_blocked(bash_input(command, cwd))
+        for command in allowed:
+            with self.subTest(allowed=command):
+                self.assert_allowed(bash_input(command, cwd))
+
+    def test_r1_1_path_glued_to_a_short_option_is_checked(self):
+        self.assert_all(
+            blocked=("date -f.env", "date -fbackend/.env", "head -c5x.key", "tail -n1infra/secrets/k"),
+            allowed=("head -n5 .claude/settings.json", "git log -n3"),
+        )
+
+    def test_r1_2_windows_short_names_are_blocked_outside_git(self):
+        self.assert_all(
+            blocked=("head ENV~1", "ls infra/SECRET~1", "jq -R . ENV~1", "wc 'backend\\ENV~1'"),
+            allowed=("git diff HEAD~1 -- .claude/settings.json", "git log HEAD~3..HEAD", "ls ~/.claude"),
+        )
+
+    def test_r1_3_win32_name_normalisation_is_blocked(self):
+        self.assert_all(
+            blocked=(
+                "head keys/x.pem.",
+                "ls infra/secrets./jwt-private.pem.",
+                "head 'x.pem::$DATA'",
+                "ls 'infra/secrets::$INDEX_ALLOCATION/k'",
+                "head 'x.pem '",
+                "head 'infra/secrets /k'",
+                "head x.pem:stream",
+                "head 'backend/.env. '",
+            ),
+            allowed=("git show HEAD:.claude/settings.json", "head .env.example", "head .claude/README.md"),
+        )
+
+    def test_r1_4_git_diff_outside_the_project_is_blocked(self):
+        self.assert_all(
+            blocked=(
+                "git diff /etc/hosts .claude/settings.json",
+                "git diff ../outside.txt .claude/settings.json",
+                "git diff C:/Windows/win.ini .claude/settings.json",
+                "git diff -- '~/x.txt' .claude/settings.json",
+            ),
+            allowed=(
+                "git diff HEAD~1 -- .claude/settings.json",
+                "git diff a..b",
+                "git diff -- " + ROOT_FWD + "/README.md",
+            ),
+        )
+        self.assert_blocked(bash_input("git diff ../../x.txt y.txt", ROOT_FWD + "/infra"))
+        self.assert_allowed(bash_input("git diff ../x.txt", ROOT_FWD + "/infra"))
+
+    def test_r1_5_recursive_and_ignored_listings_are_blocked(self):
+        self.assert_all(
+            blocked=(
+                "ls -R infra",
+                "ls -laR infra",
+                "ls --recursive infra",
+                "ls --recur infra",
+                "git status --ignored",
+                "git status --ignored=matching",
+                "git ls-files --ignored --others --exclude-standard",
+                "git ls-files -oi --exclude-standard",
+            ),
+            allowed=("ls -la infra", "git status --short", "git ls-files -o"),
+        )
+
+    def test_r1_6_jq_filter_is_not_read_as_a_path(self):
+        self.assert_all(
+            blocked=(
+                "jq '.x' .env",
+                "jq -f .env .claude/settings.json",
+                "jq . -f .env",
+                "jq -rf .env .claude/settings.json",
+                "jq --slurpfile a .env '.env' .claude/settings.json",
+                "jq --unknown .env .claude/settings.json",
+                "jq -- .env .claude/settings.json",
+                "jq -Z .env .claude/settings.json",
+            ),
+            allowed=(
+                "jq '.env' .claude/settings.json",
+                "jq -r '.key' .claude/settings.json",
+                "jq --arg n v '.env' .claude/settings.json",
+                "jq -n --indent 2 '.env'",
+                "jq --raw-output .env .claude/settings.json",
+            ),
+        )
+
+    def test_r1_8_an_unexpected_error_blocks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hooks = os.path.join(tmp, ".claude", "hooks")
+            shutil.copytree(HOOKS, hooks)
+            shutil.copy(os.path.join(ROOT, ".claude", "settings.json"), os.path.join(tmp, ".claude"))
+            with open(os.path.join(hooks, "lib.sh"), "a", encoding="utf-8", newline="\n") as f:
+                f.write("require_jq() { exit 1; }\n")
+            self.assert_blocked(bash_input("git status"), os.path.join(hooks, "audit-write-guard.sh"))
+
+    def test_r1_9_long_commands_are_blocked(self):
+        self.assert_blocked(bash_input("ls " + "a" * 5000))
+        self.assert_allowed(bash_input("ls " + "a" * 4093))
+
     # Non-regression: the cases of #122
 
     def test_cases_allowed_by_122(self):
