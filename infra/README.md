@@ -84,7 +84,7 @@ These files hold secrets. Claude must not read, print, copy or edit them: what a
 
 Any other `.env` variant (`.env.bak`, `.env.local`, `.env~`) and any other file in `infra/secrets/` is treated the same way. `.env.example` is tracked, holds no secret and stays readable.
 
-`.claude/settings.json` denies Claude reading, printing or copying them; the rules and their limits are in `.claude/README.md` (*Secret file rules*).
+`.claude/settings.json` denies Claude reading, editing, printing or copying them; the rules and their limits are in `.claude/README.md` (*Secret file rules*).
 
 ## 2. Backend and frontend outside Docker (fast feedback)
 
