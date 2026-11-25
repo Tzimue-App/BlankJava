@@ -17,7 +17,7 @@ Rules: `.github/ISSUE_GUIDELINES.md` (*Changelog and versions*, *Definition of D
    - `backend/`: `./gradlew check` (it includes `integrationTest`, which needs Docker: if Docker is not running, say so and stop rather than skip it);
    - `frontend/`: `npm run lint`, `npm run test:ci` and `npm run build`;
    - `e2e/`: `./gradlew check`; the Selenium suite itself runs in CI (add the `run-e2e` label only as the project rules allow, see `.github/ISSUE_GUIDELINES.md` *Labels*);
-   - `tests/` or `bump_version.py`: `python -m pytest tests/`.
+   - `tests/`, `bump_version.py` or `.claude/settings.json`: `python -m pytest tests/` (the `tooling` filter of `.github/module-filters.yml` runs it in CI for the same paths).
 5. Check each acceptance criterion of the issue against the diff and the test results. List any that is not met and **stop**. Then call the `reviewer` subagent (`.claude/agents/reviewer.md`, read-only, it does not see this conversation and cannot run Git): pass it the issue text (`gh issue view <issue>`) and the diff (`git diff origin/<milestone-branch>...HEAD`). That diff omits untracked files: list them with `git status --short` and give the reviewer their paths (or commit them first, step 2). Show its findings; **stop** on any that blocks the merge, and show the others in the pull request description under *How to review*.
 6. Update `CHANGELOG.md` `[Unreleased]`:
    - add one line per change under the fitting heading (usually `### ChangeLog` for tooling), ending with `(#<issue>)`, in the style of the existing lines; replace the `_Description: ..._` placeholder only if it is still there;
