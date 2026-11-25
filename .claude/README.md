@@ -58,15 +58,33 @@ Limits: the migration guard covers `Edit` and `Write`, not `Bash` (`sed -i`, `mv
 
 ## Skills
 
-Five skills in `.claude/skills/<name>/SKILL.md`. Three automate the issue and pull request workflow of `.github/ISSUE_GUIDELINES.md`; each has `disable-model-invocation: true`: it appears in the `/` menu but Claude never starts it by itself, because each one has side effects (a branch, a push, an issue).
+Seven skills in `.claude/skills/<name>/SKILL.md`. Four automate the issue and pull request workflow of `.github/ISSUE_GUIDELINES.md`; each has `disable-model-invocation: true`: it appears in the `/` menu but Claude never starts it by itself, because each one has side effects (a branch, a push, an issue).
 
 | Skill | Does | Asks before |
 |---|---|---|
 | `/start-issue <number>` | Checks the issue is ready (solution, acceptance criteria, dependencies merged into the milestone branch), creates `<type>/<number>-<slug>` from the milestone branch, restates the definition of done | Stops on a missing part or unmerged dependency, creates no branch |
 | `/open-pr` | Runs the checks of the changed modules, updates `CHANGELOG.md` and the `Bump-` lines, runs `bump_version.py --check`, fills the pull request template | `git push` and `gh pr create` |
 | `/draft-issue <summary>` | Picks the template, writes the draft in `.github/issues/` with Given / when / then criteria | `gh issue create` |
+| `/implement-issue <number>` | Orchestrates an issue: sub-issues in dependency order, `implementer` writes, review loop of at most 3 rounds, pull request per sub-issue into the issue branch, `agent-review` status, then the issue pull request into the milestone branch; resumes from the GitHub and git state | `git push`, `gh pr create`, `gh api` (permission prompts); the issue pull request into the milestone branch |
 
 No skill merges: a human merges.
+
+`/issue-status <number>` is read-only: it shows the state `/implement-issue` works from (sub-issues, pull requests, review rounds, `agent-review`, questions waiting) and the next action.
+
+### Issue orchestration
+
+Roles: the orchestrator (`/implement-issue`, in the main session) decides and is the only one to write to GitHub; `implementer` writes and commits the code; `reviewer`, `/code-review` and, on the issue pull request, `/simplify` and `/security-review` check it. Sub-issues of one issue run **in sequence**: parallel work inside an issue costs several times the tokens for little gain. Parallelism is across issues, one session per issue:
+
+1. `/start-issue <n>` in the main checkout: readiness, issue branch, push (asks), and the command to start the run.
+2. In a new terminal at the repository root: `claude -w issue-<n> "/implement-issue <n>"` (its own worktree).
+3. Per sub-issue: branch `<type>/<issue>-<sub-issue>-<slug>`, `implementer`, draft pull request into the issue branch, review rounds (comment `### Review round k` with each finding's decision, models and tokens), `agent-review` status, merge (by the person until #131), then the sub-issue is closed.
+
+Triage: the orchestrator fixes, rejects or sends each finding to the person. The severity is never a reason to reject: a rejection must say the finding is wrong, out of scope (naming the criterion) or already rejected, a finding raised by both `reviewer` and `/code-review` is never rejected as out of scope, and the issue pull request lists every rejected finding so that the person can overrule it.
+4. Issue pull request: `/simplify`, checks, `CHANGELOG.md` and `Bump-` lines, then review rounds with `/code-review high`, `/security-review` and `reviewer` against the parent issue. A human merges it.
+
+Interrupted run (usage limit, closed session): run the same `/implement-issue <n>` again. `implementer` commits after each green step, and the orchestrator works out the state from merged and open pull requests, round comments and branches. Questions: critical ones put `need-manual` on the pull request and stop that issue only; answer in a pull request comment and rerun. Minor ones go to the milestone issue labelled `question`.
+
+Measures: each round comment records the model and the token count of each subagent run (the counts the Agent tool returns; `n/a` for skills such as `/code-review`, which give none). Over several issues this compares models on real work; use `/usage` and the `session-report` plugin for the whole session.
 
 Two more skills only describe how to work, so Claude may load them on its own, restricted by `paths` to the modules they concern. Neither pushes nor files anything.
 
@@ -81,7 +99,8 @@ Subagents in `.claude/agents/`.
 
 | Agent | Tools | Does |
 |---|---|---|
-| `reviewer` | `Read, Grep, Glob` (read-only, enforced by Claude Code) | Reviews a change against the acceptance criteria of its issue: criteria implemented (failure paths included), a test that asserts behaviour for each, nothing unrequested, no secret or personal data. Reports file, line, a concrete situation and whether it blocks the merge; no style remarks |
+| `reviewer` | `Read, Grep, Glob, LSP` (read-only, enforced by Claude Code) | Reviews a change against the acceptance criteria of its issue: criteria implemented (failure paths included), a test that asserts behaviour for each, nothing unrequested, no secret or personal data. Reports an id, file, line, a concrete situation and whether it blocks the merge, then `Verdict: APPROVE\|CHANGES`; from round 2 of `/implement-issue`, reviews only the fixes and the open findings and never repeats a rejected one; no style remarks |
+| `implementer` | `Read, Edit, Write, Grep, Glob, Bash, LSP` | Called by `/implement-issue`: implements one sub-issue or a list of findings on the current branch, runs the checks of the changed modules, commits locally; never pushes, calls `gh`, edits `CHANGELOG.md`, version fields or generated code. Reports commits, checks, assumptions and questions (critical or minor) |
 | `test-triager` | `Read, Grep, Glob` (read-only), model `sonnet` | Classifies each failure of a test run as product bug, test bug, flaky or environment, from the downloaded JUnit XML and logs (`compose-logs.txt`, screenshots), with the evidence; says "could not determine" instead of guessing; answer under about 40 lines, no code changes |
 | `claude-env-auditor` | `Read, Grep, Glob, Write, Bash, WebFetch, WebSearch, Agent`, `background: true`, model `opus`, guarded by `audit-write-guard.sh` | Audits the whole Claude environment (project and, read-only, user level) against `.claude/audit/criteria.md` and the current official docs; writes one English report per run in `.audits/claude-env/`; fixes nothing. Started with `/audit-env [sub-scope]` only |
 | `claude-env-analyst` | `Read, Grep, Glob` (read-only), model `opus` (same as the auditor, so the report quality does not depend on the delegation mode) | Worker of the auditor: returns component cards with evidence for a list of paths; not for direct use |
