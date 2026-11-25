@@ -60,6 +60,14 @@ def path_regex(glob, ignore_case=True):
     return re.compile(out + r"\Z", re.IGNORECASE if ignore_case else 0)
 
 
+def command_regex(glob, ignore_case=True):
+    """Regex of a Bash or PowerShell rule body: ``*`` matches any text, spaces included (checked live for Bash)."""
+    return re.compile(
+        ".*".join(re.escape(p) for p in glob.split("*")) + r"\Z",
+        re.IGNORECASE if ignore_case else 0,
+    )
+
+
 class SettingsTest(unittest.TestCase):
     def setUp(self):
         self.permissions = load_settings()["permissions"]
@@ -73,9 +81,18 @@ class SettingsTest(unittest.TestCase):
             if rule.startswith(prefix) and "/" not in rule[len(prefix) : -1]
         ]
 
+    def rule_bodies(self, tool, prefix=""):
+        start = tool + "(" + prefix
+        return [rule[len(start) : -1] for rule in self.deny if rule.startswith(start)]
+
     def secret_globs(self, tool):
-        prefix = tool + "(//"
-        return [rule[len(prefix) : -1] for rule in self.deny if rule.startswith(prefix)]
+        return self.rule_bodies(tool, "//")
+
+    def merge_globs(self, tool):
+        return [body for body in self.rule_bodies(tool) if "merge" in body.lower()]
+
+    def merge_rules(self, tool, ignore_case):
+        return [command_regex(glob, ignore_case) for glob in self.merge_globs(tool)]
 
     def path_denied(self, tool, path, ignore_case=True):
         return any(path_regex(glob, ignore_case).match(path) for glob in self.secret_globs(tool))
@@ -188,12 +205,7 @@ class SettingsTest(unittest.TestCase):
         self.assertIn("Bash(git *diff*--no-index*)", self.deny)
 
     def test_git_diff_no_index_denied_after_git_options(self):
-        # A Bash rule's * matches any text, spaces included
-        rules = [
-            re.compile(".*".join(re.escape(p) for p in rule[len("Bash(") : -1].split("*")) + r"\Z")
-            for rule in self.deny
-            if rule.startswith("Bash(git ")
-        ]
+        rules = [command_regex(glob, ignore_case=False) for glob in self.rule_bodies("Bash", "git ")]
         for command in (
             "git diff --no-index backend/a backend/b",
             "git --no-pager diff --no-index backend/a backend/b",
@@ -202,17 +214,6 @@ class SettingsTest(unittest.TestCase):
             self.assertTrue(any(r.match(command) for r in rules), command)
         for command in ("git diff --stat", "git log -1", "git diff origin/v0.2.1-a...HEAD"):
             self.assertFalse(any(r.match(command) for r in rules), command)
-
-    def merge_rules(self, tool, ignore_case):
-        # A Bash or PowerShell rule's * matches any text, spaces included (checked live for Bash)
-        return [
-            re.compile(
-                ".*".join(re.escape(p) for p in rule[len(tool) + 1 : -1].split("*")) + r"\Z",
-                re.IGNORECASE if ignore_case else 0,
-            )
-            for rule in self.deny
-            if rule.startswith(tool + "(") and "gh" in rule and "erge" in rule
-        ]
 
     def test_every_spelling_of_a_pull_request_merge_denied(self):
         commands = [
@@ -236,12 +237,12 @@ class SettingsTest(unittest.TestCase):
             "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
             "gh api graphql -f query='mutation { mergeBranch(input: {repositoryId: \"x\", base: \"main\", head: \"f\"}) { clientMutationId } }'",
         ]
+        # Case-sensitive is the strict direction for a deny: a case-folded matcher denies at least as much
         for tool in ("Bash", "PowerShell"):
-            for ignore_case in (True, False):
-                rules = self.merge_rules(tool, ignore_case)
-                for command in commands:
-                    with self.subTest(tool=tool, ignore_case=ignore_case, command=command):
-                        self.assertTrue(any(r.match(command) for r in rules))
+            rules = self.merge_rules(tool, ignore_case=False)
+            for command in commands:
+                with self.subTest(tool=tool, command=command):
+                    self.assertTrue(any(r.match(command) for r in rules))
 
     def test_read_only_commands_mentioning_merge_stay_allowed(self):
         commands = [
@@ -275,12 +276,8 @@ class SettingsTest(unittest.TestCase):
                     self.assertFalse(any(r.match(command) for r in rules))
 
     def test_bash_and_powershell_deny_the_same_merge_rules(self):
-        bash = [r[len("Bash(") :] for r in self.deny if r.startswith("Bash(") and "erge" in r]
-        powershell = [
-            r[len("PowerShell(") :] for r in self.deny if r.startswith("PowerShell(") and "erge" in r
-        ]
-        self.assertTrue(bash)
-        self.assertEqual(bash, powershell)
+        self.assertTrue(self.merge_globs("Bash"))
+        self.assertEqual(self.merge_globs("Bash"), self.merge_globs("PowerShell"))
 
 
 if __name__ == "__main__":
