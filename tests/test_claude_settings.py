@@ -46,6 +46,19 @@ def name_regex(glob, ignore_case=True):
     return re.compile(out + r"\Z", re.IGNORECASE if ignore_case else 0)
 
 
+def path_regex(glob, ignore_case=True):
+    """Regex of a whole-path glob: ``**`` is any number of folders, other parts as name_regex."""
+    parts = glob.split("/")
+    out = ""
+    for i, part in enumerate(parts):
+        last = i == len(parts) - 1
+        if part == "**":
+            out += ".*" if last else "(?:[^/]*/)*"
+        else:
+            out += name_regex(part, ignore_case).pattern[: -len(r"\Z")] + ("" if last else "/")
+    return re.compile(out + r"\Z", re.IGNORECASE if ignore_case else 0)
+
+
 class SettingsTest(unittest.TestCase):
     def setUp(self):
         self.permissions = load_settings()["permissions"]
@@ -58,6 +71,13 @@ class SettingsTest(unittest.TestCase):
             for rule in self.deny
             if rule.startswith(prefix) and "/" not in rule[len(prefix) : -1]
         ]
+
+    def secret_globs(self, tool):
+        prefix = tool + "(//"
+        return [rule[len(prefix) : -1] for rule in self.deny if rule.startswith(prefix)]
+
+    def path_denied(self, tool, path, ignore_case=True):
+        return any(path_regex(glob, ignore_case).match(path) for glob in self.secret_globs(tool))
 
     def assert_name_denied(self, tool, name, ignore_case=True):
         self.assertTrue(
@@ -83,6 +103,35 @@ class SettingsTest(unittest.TestCase):
         for tool in ("Read", "Edit"):
             for target in (".env", "infra/secrets/**", "*.pem", "*.key"):
                 self.assertIn(f"{tool}({ANY_DEPTH}{target})", self.deny)
+
+    def test_read_and_edit_deny_the_same_secret_files(self):
+        self.assertTrue(self.secret_globs("Read"))
+        self.assertEqual(self.secret_globs("Read"), self.secret_globs("Edit"))
+
+    def test_secret_paths_denied_at_any_depth(self):
+        denied = [
+            "C:/x/infra/secrets/a.txt",
+            "/home/u/p/infra/secrets/sub/b",
+            "/infra/secrets/jwt-private.pem",
+            "C:/x/y/z/infra/secrets/deep/er/c",
+            "C:/x/.env",
+            "/home/u/p/backend/.env.E2E",
+            "C:/x/keys/jwt.pem",
+            "/home/u/p/a/b/server.key",
+        ]
+        allowed = [
+            "C:/x/infra/README.md",
+            "/home/u/p/infra/secrets-old/a",
+            "/home/u/p/infra/secret/a",
+            "C:/x/.env.example",
+            "/home/u/p/backend/.env.example",
+        ]
+        for ignore_case in (True, False):
+            for tool in ("Read", "Edit"):
+                for path in denied:
+                    self.assertTrue(self.path_denied(tool, path, ignore_case), f"{tool} {path}")
+                for path in allowed:
+                    self.assertFalse(self.path_denied(tool, path, ignore_case), f"{tool} {path}")
 
     def test_env_variants_denied(self):
         names = [
