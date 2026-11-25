@@ -24,12 +24,12 @@ allow() {
   exit 0
 }
 
-# ignored_listing: for git status and ls-files, refuses `--ignored`, its unique prefixes (git accepts
-# them, from `--i`) and the other `--ign*` options. Reads `w`.
+# ignored_listing: for git status and ls-files, refuses `--ignored` and its prefixes (git accepts a
+# unique prefix; from `--i`, `=value` stripped). Reads `w`.
 ignored_listing() {
   local a
   for a in "${w[@]:2}"; do
-    [[ "$a" == --ign* || ( "$a" == --?* && "--ignored" == "${a%%=*}"* ) ]] \
+    [[ "$a" == --?* && "--ignored" == "${a%%=*}"* ]] \
       && block "git option '$a' refused (it lists the ignored secret files)."
   done
   return 0
@@ -201,7 +201,13 @@ case "$tool" in
         [ "${w[0]}" != git ] && [[ "$a" =~ ~[0-9] ]] && block "'$a': '~<digit>' (Windows short name) is refused."
       done
       case "${w[0]}" in
-        wc | head | tail | pwd | date) ;;
+        head | tail | pwd | date) ;;
+        wc)
+          # --files0-from (or a prefix of it, from `--f`) reads file names the path check never sees.
+          for a in "${w[@]:1}"; do
+            [[ "$a" == --?* && "--files0-from" == "${a%%=*}"* ]] && block "wc option '$a' refused (it reads a list of file names)."
+          done
+          ;;
         ls)
           for a in "${w[@]:1}"; do
             [[ "$a" =~ ^-[^-]*R ]] && block "ls -R is refused (it lists the secret folders)."

@@ -341,6 +341,28 @@ class AuditGuardTest(unittest.TestCase):
             allowed=("jq . docs/include/x.json", "jq -r .a docs/import/x.json"),
         )
 
+    # Review round 3 of #123
+
+    def test_r3_4_wc_files0_from_is_blocked(self):
+        self.assert_all(
+            blocked=(
+                "wc --files0-from=list.txt",
+                "wc --files0-from list.txt",
+                "wc -l --files0 list.txt",
+                "wc --f=list.txt",
+            ),
+            allowed=("wc -l .claude/settings.json", "wc --lines .claude/settings.json"),
+        )
+
+    def test_r3_6_git_status_ignore_submodules_is_allowed(self):
+        self.assert_all(
+            blocked=("git status --ignored", "git status --ig", "git status --i", "git ls-files --ignored"),
+            allowed=(
+                "git status --ignore-submodules",
+                "git status --ignore-submodules=all",
+            ),
+        )
+
     # Non-regression: the cases of #122
 
     def test_cases_allowed_by_122(self):
