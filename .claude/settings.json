@@ -30,7 +30,8 @@
       "Bash(gh pr view*)",
       "Bash(gh pr checks*)",
       "Bash(gh run view*)",
-      "Bash(gh run download*)"
+      "Bash(gh run download*)",
+      "Bash(gh api repos/{owner}/{repo}/statuses/*)"
     ],
     "ask": [
       "Bash(git push*)",
@@ -56,7 +57,11 @@
       "Edit(./backend/build/**)",
       "Edit(./frontend/projects/web/src/app/core/api/generated/**)",
       "Edit(**/*.generated.ts)",
-      "Bash(gh pr merge*)"
+      "Bash(gh pr merge*)",
+      "Bash(gh api *pulls/*/merge*)",
+      "Bash(gh api *merges*)",
+      "Bash(gh api *mergePullRequest*)",
+      "Bash(gh api *enablePullRequestAutoMerge*)"
     ]
   },
   "hooks": {

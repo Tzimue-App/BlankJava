@@ -55,5 +55,6 @@ The `LSP` tool (jdtls for Java, tsserver for TypeScript) can return incomplete r
 - One pull request into the milestone branch, with `Closes #<issue>`.
 - Each PR adds its notes to `CHANGELOG.md` `[Unreleased]` and sets `Bump-<component>:` for every component it changes.
 - Large issues are split into sub-issues: branch `<type>/<issue>-<sub-issue>-<slug>` from the issue branch, PR into the issue branch, no `CHANGELOG.md` change; `/implement-issue <n>` runs them.
-- A human merges; never merge a pull request yourself.
+- A human merges every pull request into a milestone branch, `dev`, `test` or `main`; sub-issue pull requests into an issue branch merge automatically once `agent-review` passes (`sub-issue-automerge.yml`). Never merge a pull request or enable auto-merge yourself.
+- An issue is closed when its pull request is merged into the milestone branch (`close-merged-issues.yml`), a sub-issue when its pull request is merged into the issue branch (`/implement-issue`).
 - Everything else: `.github/ISSUE_GUIDELINES.md`.
