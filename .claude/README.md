@@ -59,7 +59,7 @@ One more hook is declared in the frontmatter of `claude-env-auditor` (not in `se
 
 | Event | Script | Does |
 |---|---|---|
-| `PreToolUse` `Write\|Edit\|Bash\|Agent\|Task` | `audit-write-guard.sh` | Write and Edit only under `.audits/claude-env/`; Bash only from a read-only allowlist (no redirection, no chaining, no unquoted glob), split into words by a quote-aware tokenizer, and no word may name a path matched by a `Read(//...)` deny rule of `settings.json` (the folder of `infra/secrets/**` included; `git show <rev>:<path>` and `--opt=<path>` checked after the `:` or `=`; relative paths resolved from the hook's `cwd`); Agent only `claude-env-analyst`. Exit 2 blocks, malformed input blocks; allowed calls answer `allow` |
+| `PreToolUse` `Write\|Edit\|Bash\|Agent\|Task` | `audit-write-guard.sh` | Write and Edit only under `.audits/claude-env/`; Bash only from a read-only allowlist, read with a quote-aware tokenizer, with no argument naming a `Read(//...)` deny path of `settings.json` (details in the script header); Agent only `claude-env-analyst`. Exit 2 blocks, malformed input blocks; allowed calls answer `allow` |
 
 Limits: the migration guard covers `Edit` and `Write`, not `Bash` (`sed -i`, `mv`, `rm`); a missing `jq` makes it refuse the edit (fail closed) and the two other hooks skip. The `Stop` hook only sees uncommitted and untracked files, so a Java change committed during the same turn is not formatted: run `./gradlew spotlessApply` before committing. Gradle wrappers are run through `bash`, so the missing executable bit of `e2e/gradlew` does not matter.
 

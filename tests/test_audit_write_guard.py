@@ -12,6 +12,8 @@ import subprocess
 import tempfile
 import unittest
 
+from tests.test_claude_settings import DENIED_PATHS, ENV_VARIANTS, load_settings, path_regex
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 HOOKS = os.path.join(ROOT, ".claude", "hooks")
 GUARD = os.path.join(HOOKS, "audit-write-guard.sh")
@@ -83,6 +85,19 @@ class AuditGuardTest(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assert_blocked(bash_input(command))
+
+    def test_every_path_denied_to_read_is_blocked_in_bash(self):
+        globs = [
+            rule[len("Read(//") : -1]
+            for rule in load_settings()["permissions"]["deny"]
+            if rule.startswith("Read(//")
+        ]
+        corpus = DENIED_PATHS + ["/home/u/p/backend/" + name for name in ENV_VARIANTS + [".ENV"]]
+        denied = [p for p in corpus if any(path_regex(g).match(p) for g in globs)]
+        self.assertEqual(len(denied), len(corpus))
+        for path in denied:
+            with self.subTest(path=path):
+                self.assert_blocked(bash_input(f"ls '{path}'"))
 
     def test_relative_path_is_resolved_from_the_hook_cwd(self):
         self.assert_blocked(bash_input("ls secrets", cwd=ROOT_FWD + "/infra"))

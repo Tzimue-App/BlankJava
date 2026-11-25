@@ -7,7 +7,8 @@
 #   Agent|Task : only the claude-env-analyst subagent (`Agent(name)` restrictions are ignored in
 #                subagent frontmatter, so this hook is what enforces it)
 # Allowed calls answer with an explicit "allow" so a background run does not stop on a prompt.
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+hook_dir="$(dirname "${BASH_SOURCE[0]}")"
+. "$hook_dir/lib.sh"
 require_jq 2
 
 input="$(cat)"
@@ -22,16 +23,20 @@ allow() {
 }
 
 # tokenize <command>: splits a one-line command into the words bash would see after quote removal,
-# and into pipe segments. Fills `words` and `word_seg` (segment index of each word), sets
-# `seg_count`. Single quotes are literal; double quotes refuse `$`, backquote and backslash; outside
-# quotes, every character that would redirect, chain, substitute, expand or glob is refused.
+# and into pipe segments. Fills `words` and `seg_start`: the index in `words` of the first word of
+# each segment, then the word count (segment s ends before words[seg_start[s+1]]). Single quotes
+# are literal; double quotes refuse `$`, backquote and backslash; outside quotes, every character
+# that would redirect, chain, substitute, expand or glob is refused.
 tokenize() {
-  local s="$1" n=${#1} i c q="" word="" inword=0 seg_words=0
-  words=() word_seg=() seg_count=0
+  local s="$1" n=${#1} i c q="" word="" inword=0
+  words=() seg_start=(0)
   end_word() {
-    if [ "$inword" = 1 ]; then
-      words+=("$word"); word_seg+=("$seg_count"); seg_words=$((seg_words + 1)); word=""; inword=0
-    fi
+    if [ "$inword" = 1 ]; then words+=("$word"); word=""; inword=0; fi
+  }
+  # end_seg: the segment must have added words; the next one (or the end marker) starts here.
+  end_seg() {
+    [ "${#words[@]}" -gt "${seg_start[-1]}" ] || block "empty pipe segment."
+    seg_start+=("${#words[@]}")
   }
   for ((i = 0; i < n; i++)); do
     c="${s:i:1}"
@@ -52,9 +57,7 @@ tokenize() {
       "'" | '"') q="$c"; inword=1 ;;
       '|')
         [ "${s:i+1:1}" = '|' ] && block "chaining is refused."
-        end_word
-        [ "$seg_words" -gt 0 ] || block "empty pipe segment."
-        seg_count=$((seg_count + 1)); seg_words=0
+        end_word; end_seg
         ;;
       '>' | '<' | ';' | '&' | '`' | '$' | '\' | '(' | ')')
         block "redirection, chaining (; & ||), substitution and unquoted \$ ( ) \\ are refused." ;;
@@ -64,14 +67,12 @@ tokenize() {
     esac
   done
   [ -z "$q" ] || block "unterminated quote."
-  end_word
-  [ "$seg_words" -gt 0 ] || block "empty pipe segment."
-  seg_count=$((seg_count + 1))
+  end_word; end_seg
 }
 
-# jq program reading one word per line and printing the first one that names a path matched by a
-# `Read(//...)` deny rule of settings.json, the rule's own folder included (`infra/secrets/**` also
-# matches `infra/secrets`).
+# jq program reading one word per line (the hook input as $in) and printing the first one that names
+# a path matched by a `Read(//...)` deny rule of settings.json, the rule's own folder included
+# (`infra/secrets/**` also matches `infra/secrets`).
 # Each word is checked whole and from after every `:` or `=` (`HEAD:path`, `--opt=path`), with
 # backslashes read as `/`, relative to the hook's cwd, `.` and `..` resolved, case folded (as the
 # Read rules on Windows). Fails when settings.json has no such rule. Glob to regex as in
@@ -110,7 +111,7 @@ def candidates:
 ($s[0].permissions.deny // []
   | map(select(type == "string" and startswith("Read(//") and endswith(")")) | .[7:-1] | glob_re)) as $res
 | if ($res | length) == 0 then error("no Read(//...) deny rule in .claude/settings.json") else . end
-| ($cwd | slashes) as $c
+| ($in.cwd // "" | slashes) as $c
 | first(inputs as $w
     | $w | candidates[] | slashes
     | (if test("^(/|~|[A-Za-z]:/)") or $c == "" then . else $c + "/" + . end) | resolve
@@ -142,11 +143,8 @@ case "$tool" in
     case "$cmd" in *$'\n'*) block "multi-line commands are refused." ;; esac
     tokenize "$cmd"
     # Every pipe segment must be an allowed read-only command.
-    for ((s = 0; s < seg_count; s++)); do
-      w=()
-      for ((k = 0; k < ${#words[@]}; k++)); do
-        [ "${word_seg[k]}" -eq "$s" ] && w+=("${words[k]}")
-      done
+    for ((s = 0; s + 1 < ${#seg_start[@]}; s++)); do
+      w=("${words[@]:seg_start[s]:seg_start[s + 1] - seg_start[s]}")
       case "${w[0]}" in
         ls | wc | head | tail | pwd | date) ;;
         jq)
@@ -180,10 +178,8 @@ case "$tool" in
       esac
     done
     # No word may name a secret file: the Read deny rules do not cover Bash.
-    settings="$(dirname "${BASH_SOURCE[0]}")/../settings.json"
-    cwd="$(jq -r '.cwd // empty' <<<"$input")"
     # One word per line on stdin (a word has no newline: multi-line commands are refused above).
-    denied="$(printf '%s\n' "${words[@]}" | jq -nRr --slurpfile s "$settings" --arg cwd "$cwd" "$secret_match" 2>/dev/null)" \
+    denied="$(printf '%s\n' "${words[@]}" | jq -nRr --slurpfile s "$hook_dir/../settings.json" --argjson in "$input" "$secret_match" 2>/dev/null)" \
       || block "cannot read the Read deny rules of .claude/settings.json."
     [ -z "$denied" ] || block "'$denied' names a file protected by the Read deny rules of .claude/settings.json."
     allow "read-only command"
