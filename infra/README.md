@@ -74,7 +74,7 @@ Delete `blankjava-dev.crt` afterwards. It is regenerated only if the `certs` vol
 
 ### Secret files
 
-These files hold secrets. They are git-ignored, excluded from the Docker build contexts, and Claude must not read, print, copy or edit them: what an agent reads ends up in its context, its logs and possibly a commit or a pull request. Create and change them yourself.
+These files hold secrets. Claude must not read, print, copy or edit them: what an agent reads ends up in its context, its logs and possibly a commit or a pull request. Create and change them yourself.
 
 | File | Holds |
 |---|---|
@@ -84,7 +84,7 @@ These files hold secrets. They are git-ignored, excluded from the Docker build c
 
 Any other `.env` variant (`.env.bak`, `.env.local`, `.env~`) and any other file in `infra/secrets/` is treated the same way. `.env.example` is tracked, holds no secret and stays readable.
 
-`.claude/settings.json` denies reading these files with Claude's file tools, and denies `cat`, `type`, `head`, `tail`, `less`, `more`, `Get-Content`, `grep`, `sed`, `awk`, `cp` and `base64` on `.env*`, `infra/secrets`, `*.pem` and `*.key` through Bash (see `.claude/README.md`, *Permissions*).
+`.claude/settings.json` denies Claude reading, printing or copying them; the rules and their limits are in `.claude/README.md` (*Secret file rules*).
 
 ## 2. Backend and frontend outside Docker (fast feedback)
 

@@ -33,15 +33,16 @@ Each new worktree under `.claude/worktrees/<name>/` gets its own copy of `.env` 
 
 - `allow`: check, lint, build and read-only commands (Gradle check tasks, frontend scripts, Spectral, pytest, `bump_version.py --check`/`--dry-run`, `git status|diff|log`, `gh issue|pr|run` views), and setting a commit status (`gh api repos/*/statuses/*`, the `agent-review` status of `/implement-issue`).
 - `ask`: `git push`, `gh pr create`, `gh issue create`, `bump_version.py --start-milestone`, Docker commands removing volumes.
-- `deny`: reading the secret files listed in `infra/README.md` (*Secret files*) and their variants, at any depth: `.env` and every `.env*` name except `.env.example`, `infra/secrets/**`, `*.pem`, `*.key`; showing or copying them through `Bash` (`cat`, `type`, `head`, `tail`, `less`, `more`, `Get-Content`, `grep`, `sed`, `awk`, `cp`, `base64`) and through the `PowerShell` tool (`Get-Content`, `gc`, `cat`, `type`, `Select-String`, `Copy-Item`) when an argument contains `.env`, `infra/secrets`, `.pem` or `.key`; editing generated code; merging or enabling auto-merge: `gh pr merge` (`--auto` included), the REST merge endpoints (`pulls/<n>/merge`, `merges`) and the GraphQL `mergePullRequest` and `enablePullRequestAutoMerge` mutations (a human merges; sub-issue pull requests are auto-merged by a workflow, never by Claude).
+- `deny`: reading, printing or copying the secret files (see *Secret file rules* below); editing generated code; merging or enabling auto-merge: `gh pr merge` (`--auto` included), the REST merge endpoints (`pulls/<n>/merge`, `merges`) and the GraphQL `mergePullRequest` and `enablePullRequestAutoMerge` mutations (a human merges; sub-issue pull requests are auto-merged by a workflow, never by Claude).
 
 Write a new rule from the exact command shown in a permission prompt, with `*` after the subcommand. Only read-only or check commands belong in `allow`.
 
 Secret file rules:
 
+- What is denied: reading the secret files listed in `infra/README.md` (*Secret files*) and their variants, at any depth: `.env` and every `.env*` name except `.env.example`, `infra/secrets/**`, `*.pem`, `*.key`; showing or copying them through `Bash` (`cat`, `type`, `head`, `tail`, `less`, `more`, `Get-Content`, `grep`, `sed`, `awk`, `cp`, `base64`) and through the `PowerShell` tool (`Get-Content`, `gc`, `cat`, `type`, `Select-String`, `Copy-Item`) when the command contains `.env`, `infra/secrets`, `.pem` or `.key`.
 - A deny rule has no exception, and `Read` rules do not support negated classes (`[!e]` and `[^e]` are read literally, so `Read(**/.env.[!e]*)` denies `.env.example`). The `.env` variants are therefore denied with positive classes, one rule per letter of `example` (`.env.[a-df-z…]*`, `.env.e[a-wyz…]*`, …, `.env.example?*`), plus `.env` and `.env[a-zA-Z0-9_~-]*` (`.envrc`, `.env~`). Check any change by reading a missing `.env.bak` (denied) and `.env.example` (readable).
 - `Bash` rules match the whole command with `*`, which has no class, so `cat .env.example` is denied too: read it with the `Read` tool. They also deny some harmless commands whose arguments contain `.env`, `.pem` or `.key` (`grep -rn "process.env" frontend`, `cp .env.example .env`): use the `Grep` tool, or run the command yourself.
-- Not covered: other commands or scripts that print a file (`docker compose config`, `python -c`, `cd infra/secrets && cat *`). A `PreToolUse` hook is the next step if these rules prove too narrow.
+- Not covered: other commands or scripts that print a file (`docker compose config`, `python -c`, `cd infra/secrets && cat *`). A `PreToolUse` hook is the next step if these rules prove too narrow; `protect-migrations.sh` and `lib.sh` (`relative_target`) are the model to start from.
 
 ## Hooks
 
