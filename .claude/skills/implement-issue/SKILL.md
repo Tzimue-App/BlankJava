@@ -49,8 +49,8 @@ An issue without sub-issues is worked on the issue branch itself: `git switch <i
 
 1. **Develop.** Call `implementer` with: the sub-issue text, the parent issue text, the branch and the base branch (`origin/<issue-branch>`; for an issue without sub-issues, `origin/<milestone-branch>`). In development already: say what is committed (`git log --oneline origin/<base>..HEAD`) and ask it to finish. Keep from its result the report and the token count the Agent tool returns.
    - `BLOCKED` on a critical question: go to step 6 (ask). On a check it could not make pass: post it the same way, as a critical question.
-   - Minor questions: post each one as a comment on the open issue of the milestone labelled `question` (`gh issue list --milestone "<title>" --label question --state open`), with the sub-issue number, the options and the default taken. If there is none, keep them for the *Open questions* section of the final pull request and say so.
-2. **Open the pull request** (sub-issue only; for an issue without sub-issues go to section 7). `git push -u origin <branch>`, then `gh pr create --draft --base <issue-branch> --head <branch> --title "<sub-issue title>" --body-file <file>` with `Closes #<n>`, *Part of #$ARGUMENTS*, what was done, the assumptions and the minor questions. Skip if the pull request exists.
+   - Minor questions: post each one as its own comment on the open issue of the milestone labelled `question` (`gh issue list --milestone "<title>" --label question --state open`), with the sub-issue number, the implementer run, the options and the default taken, before the next review round. If there is none, keep them for the *Open questions* section of the final pull request and say so. A question is posted once: when it duplicates a review finding, one comment holds both (the finding's bucket comment says `also implementer question of run <r>`, or the finding's decision links the question comment already posted). The same applies to the minor questions of every later `implementer` report (fix rounds).
+2. **Open the pull request** (sub-issue only; for an issue without sub-issues go to section 7). `git push -u origin <branch>`, then `gh pr create --draft --base <issue-branch> --head <branch> --title "<title>" --body-file <file>` with `Closes #<n>`, *Part of #$ARGUMENTS*, what was done, the assumptions and the minor questions. The title states the change in Conventional Commits style, `<type>(<area>): <what now happens>`, not the sub-issue title: with a squash merge it becomes the commit subject. Skip if the pull request exists.
 3. **Review round** `k` (from step 2's count, at most 3):
    - Call `reviewer` with the sub-issue text and `git diff origin/<issue-branch>...HEAD`; from round 2, also the round number, the rejected findings with their reasons, the open findings and `git diff <last reviewed commit>..HEAD`.
    - Run the `code-review` skill at level `medium` on the pull request (`medium <pr-number>`), without `--comment` and without `--fix`.
@@ -79,7 +79,11 @@ Round comment, posted on the sub-issue pull request (on the issue pull request i
 
 Reviewers: reviewer (<model>, <tokens> tokens), code-review medium (<model>, tokens n/a)
 Implementer so far: <model>, <tokens> tokens over <runs> runs
+Questions posted: <link> (implementer run <r>), ...
+Skipped: <step> (<reason>), ...
 ```
+
+`Questions posted` lists the minor questions of `implementer` reports posted since the previous round comment (step 4.1), with the link of the comment that holds each one; `Skipped` lists every step of this skill skipped since then (`/simplify`, a check, a reviewer), with the reason, e.g. `Skipped: simplify (docs-only diff)`. Omit a line when it has nothing to list. What happens after the last round (the fix pass of `nit` findings) goes on the same lines of its `### Fix round` comment.
 
 `<model>` is the model of the subagent (its `model` field, or the session model when it says `inherit`). The tokens are the counts the Agent tool returns; write `n/a` when a count is not given. Never estimate one.
 
@@ -97,12 +101,17 @@ Implementer so far: <model>, <tokens> tokens over <runs> runs
 When every sub-issue is done (or for an issue without sub-issues, after step 4.1 on the issue branch):
 
 1. `git switch <issue-branch>` and `git pull --ff-only`.
-2. Run the `simplify` skill on the changes of the issue (`git diff origin/<milestone-branch>...HEAD`). It changes code: run the checks of the changed modules, then commit (`refactor: simplify ... (#$ARGUMENTS)`). Skip if a previous run already did (a commit `refactor: simplify` exists since the last sub-issue merge).
+2. Run the `simplify` skill on the changes of the issue (`git diff origin/<milestone-branch>...HEAD`). It changes code: run the checks of the changed modules, then commit (`refactor: simplify ... (#$ARGUMENTS)`). Skip if a previous run already did (a commit `refactor: simplify` exists since the last sub-issue merge). Any skip, for this or another reason, goes on the `Skipped` line of the first round comment of step 7.5.
 3. Follow steps 4, 6 and 7 of `.claude/skills/open-pr/SKILL.md` (checks, `CHANGELOG.md` and `Bump-` lines, `bump_version.py --check`). If `origin/<milestone-branch>` moved, merge it into the issue branch first; a conflict in `CHANGELOG.md` is resolved by keeping the lines of both sides.
-4. Show the person the pull request title and description (step 8 of `/open-pr`, plus a *Review history* table: one row per sub-issue pull request with its rounds, fixed, rejected, bucket, and the open questions; then a *Rejected findings* list with **every** rejected finding of every round, sub-issue pull requests included: id, pull request, file:line, the finding and the reason, so that the person can overrule a rejection in the review) and **ask before pushing and creating the pull request**. Then `git push` and `gh pr create --draft --base <milestone-branch>`.
+4. Show the person the pull request title and description (step 8 of `/open-pr`, plus a *Review history* table: one row per sub-issue pull request with its rounds, fixed, rejected, bucket, and the open questions; then a *Rejected findings* list with **every** rejected finding of every round, sub-issue pull requests included: id, pull request, file:line, the finding and the reason, so that the person can overrule a rejection in the review) and **ask before pushing and creating the pull request**. Two rules replace those of `/open-pr`:
+   - **Title**: the change in Conventional Commits style, `<type>(<area>): <what now happens>`, not the issue title (with a squash merge it becomes the commit subject on the milestone branch). An issue titled as a problem gets a title that states the fix.
+   - **Evidence**: every acceptance criterion the run could not check (it needs a fresh session, a running stack, a manual setting) is an unchecked `- [ ]` item naming the check to do. Keep them for the end-of-run report (section 8).
+
+   Then `git push` and `gh pr create --draft --base <milestone-branch> --title "<title>"`.
 5. Review rounds as in step 4.3, three rounds shared by all reviewers: `reviewer` with the **parent issue** and `git diff origin/<milestone-branch>...HEAD`, the `code-review` skill at level `high` on the pull request, and the `security-review` skill. Fixes by `implementer`, pushed after each round.
-6. `gh pr ready <pr>`, then stop: a human reviews and merges into the milestone branch. Report the pull request URL, the rounds, and what is left in the bucket.
+6. After the last round and its fix pass, update the pull request body so that it matches the round comments: the *Review history* table (for an issue without sub-issues, one row for the issue pull request itself; otherwise one row per sub-issue pull request plus one for the issue pull request) with rounds, fixed, rejected, bucket and open questions, and the *Rejected findings* list with the rejections of step 7.5 added. Write the whole body to a file and run `gh pr edit <pr> --body-file <file>`; doing it again rewrites the same body.
+7. `gh pr ready <pr>`, then stop: a human reviews and merges into the milestone branch. Report the pull request URL, the rounds, and what is left in the bucket.
 
 ## 8. End of a run
 
-Always end with: the state table of section 2 as it is now, what this run did, and the exact next action (who does what, and `/implement-issue $ARGUMENTS` to resume).
+Always end with: the state table of section 2 as it is now, what this run did, and the exact next action (who does what, and `/implement-issue $ARGUMENTS` to resume). Under *Still to do (you)*, list every acceptance criterion the run could not check (the unchecked *Evidence* items of step 7.4) with the check to do.
