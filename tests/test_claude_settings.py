@@ -61,7 +61,11 @@ def path_regex(glob, ignore_case=True):
 
 
 def command_regex(glob, ignore_case=True):
-    """Regex of a Bash or PowerShell rule body: ``*`` matches any text, spaces included (checked live for Bash)."""
+    """Regex of a Bash or PowerShell rule body: ``*`` matches any text, spaces included (checked live for Bash).
+
+    Single-line commands only: whether Claude Code's ``*`` crosses a newline was not checked
+    (.claude/README.md, *Merge rules*), so ``.`` here does not match one.
+    """
     return re.compile(
         ".*".join(re.escape(p) for p in glob.split("*")) + r"\Z",
         re.IGNORECASE if ignore_case else 0,
@@ -89,7 +93,7 @@ class SettingsTest(unittest.TestCase):
         return self.rule_bodies(tool, "//")
 
     def merge_globs(self, tool):
-        return [body for body in self.rule_bodies(tool) if "merge" in body.lower()]
+        return [body for body in self.rule_bodies(tool) if body.startswith("*gh*")]
 
     def merge_rules(self, tool, ignore_case):
         return [command_regex(glob, ignore_case) for glob in self.merge_globs(tool)]
@@ -205,14 +209,21 @@ class SettingsTest(unittest.TestCase):
         self.assertIn("Bash(git *diff*--no-index*)", self.deny)
 
     def test_git_diff_no_index_denied_after_git_options(self):
-        rules = [command_regex(glob, ignore_case=False) for glob in self.rule_bodies("Bash", "git ")]
+        globs = [body for body in self.rule_bodies("Bash") if body.startswith("git ")]
+        self.assertIn("git *diff*--no-index*", globs)
+        rules = [command_regex(glob, ignore_case=False) for glob in globs]
         for command in (
             "git diff --no-index backend/a backend/b",
             "git --no-pager diff --no-index backend/a backend/b",
             "git -C . diff --no-index backend/a backend/b",
         ):
             self.assertTrue(any(r.match(command) for r in rules), command)
-        for command in ("git diff --stat", "git log -1", "git diff origin/v0.2.1-a...HEAD"):
+        for command in (
+            "git diff --stat",
+            "git log -1",
+            "git diff origin/v0.2.1-a...HEAD",
+            "/usr/bin/git diff --no-index a b",  # not covered (README): the rule starts with `git `
+        ):
             self.assertFalse(any(r.match(command) for r in rules), command)
 
     def test_every_spelling_of_a_pull_request_merge_denied(self):
@@ -220,6 +231,9 @@ class SettingsTest(unittest.TestCase):
             "gh pr merge",
             "gh pr merge 12",
             "gh pr merge 12 --squash --delete-branch",
+            "gh pr merge>out.txt 12",
+            "gh pr merge\"\" 12",
+            "gh pr merge	12",
             "gh pr merge --auto --squash 12",
             "gh pr merge 12 -R owner/repo",
             "gh -R owner/repo pr merge 12",
@@ -236,6 +250,7 @@ class SettingsTest(unittest.TestCase):
             "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
             "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
             "gh api graphql -f query='mutation { mergeBranch(input: {repositoryId: \"x\", base: \"main\", head: \"f\"}) { clientMutationId } }'",
+            "gh api graphql -f query='mutation { enqueuePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
         ]
         # Case-sensitive is the strict direction for a deny: a case-folded matcher denies at least as much
         for tool in ("Bash", "PowerShell"):
@@ -244,7 +259,15 @@ class SettingsTest(unittest.TestCase):
                 with self.subTest(tool=tool, command=command):
                     self.assertTrue(any(r.match(command) for r in rules))
 
-    def test_read_only_commands_mentioning_merge_stay_allowed(self):
+    def test_upper_case_gh_denied_when_case_is_folded(self):
+        # Windows runs GH.exe for `GH`; denied only if the matcher folds case (not checked for Bash)
+        for tool in ("Bash", "PowerShell"):
+            rules = self.merge_rules(tool, ignore_case=True)
+            for command in ("GH pr merge 12", "GH pr -R owner/repo merge 12"):
+                with self.subTest(tool=tool, command=command):
+                    self.assertTrue(any(r.match(command) for r in rules))
+
+    def test_other_commands_mentioning_merge_stay_allowed(self):
         commands = [
             "git merge origin/v0.2.1-a",
             "git log --merges",
@@ -252,6 +275,8 @@ class SettingsTest(unittest.TestCase):
             "gh pr view 12",
             "gh pr view 12 --json state",
             "gh pr view 12 --json state,mergedAt,mergeable,mergeStateStatus",
+            "gh pr -R o/r view 1 --json mergedAt",
+            "gh pr --repo o/r view 1 --json mergedAt",
             "gh pr checks 12",
             "gh pr ready 12",
             "gh pr list --base feat/14-x --state merged --search \"57 in:body\" --json number,body",

@@ -203,8 +203,7 @@
       "Edit(./backend/build/**)",
       "Edit(./frontend/projects/web/src/app/core/api/generated/**)",
       "Edit(**/*.generated.ts)",
-      "Bash(*gh*pr merge)",
-      "Bash(*gh*pr merge *)",
+      "Bash(*gh*pr merge*)",
       "Bash(*gh*pr -R* merge)",
       "Bash(*gh*pr -R* merge *)",
       "Bash(*gh*pr --repo* merge)",
@@ -214,8 +213,8 @@
       "Bash(*gh*api*mergeBranch*)",
       "Bash(*gh*api*mergePullRequest*)",
       "Bash(*gh*api*enablePullRequestAutoMerge*)",
-      "PowerShell(*gh*pr merge)",
-      "PowerShell(*gh*pr merge *)",
+      "Bash(*gh*api*enqueuePullRequest*)",
+      "PowerShell(*gh*pr merge*)",
       "PowerShell(*gh*pr -R* merge)",
       "PowerShell(*gh*pr -R* merge *)",
       "PowerShell(*gh*pr --repo* merge)",
@@ -224,7 +223,8 @@
       "PowerShell(*gh*api*merges*)",
       "PowerShell(*gh*api*mergeBranch*)",
       "PowerShell(*gh*api*mergePullRequest*)",
-      "PowerShell(*gh*api*enablePullRequestAutoMerge*)"
+      "PowerShell(*gh*api*enablePullRequestAutoMerge*)",
+      "PowerShell(*gh*api*enqueuePullRequest*)"
     ]
   },
   "hooks": {
