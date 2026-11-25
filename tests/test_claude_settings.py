@@ -222,7 +222,6 @@ class SettingsTest(unittest.TestCase):
             "git diff --stat",
             "git log -1",
             "git diff origin/v0.2.1-a...HEAD",
-            "/usr/bin/git diff --no-index a b",  # not covered (README): the rule starts with `git `
         ):
             self.assertFalse(any(r.match(command) for r in rules), command)
 
@@ -233,7 +232,7 @@ class SettingsTest(unittest.TestCase):
             "gh pr merge 12 --squash --delete-branch",
             "gh pr merge>out.txt 12",
             "gh pr merge\"\" 12",
-            "gh pr merge	12",
+            "gh pr merge\t12",
             "gh pr merge --auto --squash 12",
             "gh pr merge 12 -R owner/repo",
             "gh -R owner/repo pr merge 12",
@@ -289,13 +288,15 @@ class SettingsTest(unittest.TestCase):
             "gh api repos/{owner}/{repo}/statuses/abc -f state=success -f context=agent-review",
             "gh api repos/owner/repo/pulls/12 --jq .merged",
             "gh api \"repos/owner/repo/pulls?state=closed\" --jq '.[].merged_at'",
+            "gh api graphql -f query='{repository(owner:\"o\",name:\"r\"){pullRequest(number:12){mergeStateStatus mergeable}}}'",
             "gh pr create --base v0.2.1-a --head chore/119-deny-pr-merge-variants --title \"x\"",
             "python bump_version.py --check origin/v0.2.1-a --head-ref chore/119-deny-pr-merge-variants",
             "git push -u origin chore/119-deny-pr-merge-variants",
         ]
+        # Every Bash / PowerShell deny rule, secret file rules included, not only the merge rules
         for tool in ("Bash", "PowerShell"):
-            rules = self.merge_rules(tool, ignore_case=True)
-            self.assertTrue(rules, tool)
+            rules = [command_regex(glob, ignore_case=True) for glob in self.rule_bodies(tool)]
+            self.assertTrue(self.merge_globs(tool), tool)
             for command in commands:
                 with self.subTest(tool=tool, command=command):
                     self.assertFalse(any(r.match(command) for r in rules))
