@@ -72,6 +72,20 @@ Then trust it:
 
 Delete `blankjava-dev.crt` afterwards. It is regenerated only if the `certs` volume is removed, in which case it must be trusted again. To use a real certificate, put `tls.crt` and `tls.key` in the `certs` volume: `cert-init` keeps existing files.
 
+### Secret files
+
+These files hold secrets. They are git-ignored, excluded from the Docker build contexts, and Claude must not read, print, copy or edit them: what an agent reads ends up in its context, its logs and possibly a commit or a pull request. Create and change them yourself.
+
+| File | Holds |
+|---|---|
+| `.env` | Compose variables, including the database password |
+| `infra/secrets/jwt-private.pem` | The JWT signing key |
+| `infra/secrets/jwt-previous-public.pem` | The public part of the previous signing key, only while a [rotation](#rotating-the-key) is under way |
+
+Any other `.env` variant (`.env.bak`, `.env.local`, `.env~`) and any other file in `infra/secrets/` is treated the same way. `.env.example` is tracked, holds no secret and stays readable.
+
+`.claude/settings.json` denies reading these files with Claude's file tools, and denies `cat`, `type`, `head`, `tail`, `less`, `more`, `Get-Content`, `grep`, `sed`, `awk`, `cp` and `base64` on `.env*`, `infra/secrets`, `*.pem` and `*.key` through Bash (see `.claude/README.md`, *Permissions*).
+
 ## 2. Backend and frontend outside Docker (fast feedback)
 
 Run the database only:
