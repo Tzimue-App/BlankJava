@@ -124,12 +124,28 @@ class SettingsTest(unittest.TestCase):
             "Bash(cat *infra/secrets*)",
             "Bash(type *.env*)",
             "Bash(Get-Content *.env*)",
-            "Bash(git diff*--no-index*)",
+            "Bash(git *diff*--no-index*)",
             "PowerShell(Get-Content *.env*)",
             "PowerShell(cat *infra/secrets*)",
             "PowerShell(cp *.env*)",
         ):
             self.assertIn(rule, self.deny)
+
+    def test_git_diff_no_index_denied_after_git_options(self):
+        # A Bash rule's * matches any text, spaces included
+        rules = [
+            re.compile(".*".join(re.escape(p) for p in rule[len("Bash(") : -1].split("*")) + r"\Z")
+            for rule in self.deny
+            if rule.startswith("Bash(git ")
+        ]
+        for command in (
+            "git diff --no-index backend/a backend/b",
+            "git --no-pager diff --no-index backend/a backend/b",
+            "git -C . diff --no-index backend/a backend/b",
+        ):
+            self.assertTrue(any(r.match(command) for r in rules), command)
+        for command in ("git diff --stat", "git log -1", "git diff origin/v0.2.1-a...HEAD"):
+            self.assertFalse(any(r.match(command) for r in rules), command)
 
 
 if __name__ == "__main__":

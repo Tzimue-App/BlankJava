@@ -144,7 +144,7 @@
       "Bash(base64 *infra\\secrets*)",
       "Bash(base64 *.pem*)",
       "Bash(base64 *.key*)",
-      "Bash(git diff*--no-index*)",
+      "Bash(git *diff*--no-index*)",
       "PowerShell(Get-Content *.env*)",
       "PowerShell(Get-Content *infra/secrets*)",
       "PowerShell(Get-Content *infra\\secrets*)",
