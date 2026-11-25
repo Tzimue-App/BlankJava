@@ -44,7 +44,7 @@ Declared in `.claude/settings.json`, scripts in `.claude/hooks/` (Bash, they rea
 | Event | Script | Does |
 |---|---|---|
 | `PreToolUse` `Edit\|Write` | `protect-migrations.sh` | Exit 2 when the target is an existing file in `backend/src/main/resources/db/migration/`; a new file is allowed |
-| `PostToolUse` `Edit\|Write` on `frontend/**` | `format-frontend.sh` | Runs Prettier on the edited file |
+| `PostToolUse` `Edit\|Write` | `format-frontend.sh` | Runs Prettier on the edited file when it is under `frontend/` (not `node_modules`, `dist`, `coverage`, `.angular`); the script filters the path, because an `if` filter in `settings.json` did not fire on Windows (#120) |
 | `Stop` | `spotless-stop.sh` | Runs `spotlessApply` then `spotlessCheck` in `backend/` and `e2e/`, only for a module with a changed `.java` or `.gradle.kts` file (`git diff HEAD` plus untracked); a failure is returned to Claude (exit 2) |
 
 One more hook is declared in the frontmatter of `claude-env-auditor` (not in `settings.json`, so `/hooks` does not list it), runs only while that subagent is active, and only after the workspace trust dialog is accepted:
