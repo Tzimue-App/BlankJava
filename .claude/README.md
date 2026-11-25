@@ -31,9 +31,9 @@ Each new worktree under `.claude/worktrees/<name>/` gets its own copy of `.env` 
 
 `.claude/settings.json` holds three lists, evaluated deny, then ask, then allow. Personal additions go in `.claude/settings.local.json`.
 
-- `allow`: check, lint, build and read-only commands (Gradle check tasks, frontend scripts, Spectral, pytest, `bump_version.py --check`/`--dry-run`, `git status|diff|log`, `gh issue|pr|run` views).
+- `allow`: check, lint, build and read-only commands (Gradle check tasks, frontend scripts, Spectral, pytest, `bump_version.py --check`/`--dry-run`, `git status|diff|log`, `gh issue|pr|run` views), and setting a commit status (`gh api repos/*/statuses/*`, the `agent-review` status of `/implement-issue`).
 - `ask`: `git push`, `gh pr create`, `gh issue create`, `bump_version.py --start-milestone`, Docker commands removing volumes.
-- `deny`: reading `.env` and its variants (`.env.example` stays readable), `infra/secrets/**`, `*.pem`, `*.key`; editing generated code; `gh pr merge` (a human merges).
+- `deny`: reading `.env` and its variants (`.env.example` stays readable), `infra/secrets/**`, `*.pem`, `*.key`; editing generated code; merging or enabling auto-merge: `gh pr merge` (`--auto` included), the REST merge endpoints (`pulls/<n>/merge`, `merges`) and the GraphQL `mergePullRequest` and `enablePullRequestAutoMerge` mutations (a human merges; sub-issue pull requests are auto-merged by a workflow, never by Claude).
 
 Write a new rule from the exact command shown in a permission prompt, with `*` after the subcommand. Only read-only or check commands belong in `allow`.
 
@@ -67,7 +67,7 @@ Seven skills in `.claude/skills/<name>/SKILL.md`. Four automate the issue and pu
 | `/draft-issue <summary>` | Picks the template, writes the draft in `.github/issues/` with Given / when / then criteria | `gh issue create` |
 | `/implement-issue <number>` | Orchestrates an issue: sub-issues in dependency order, `implementer` writes, review loop of at most 3 rounds, pull request per sub-issue into the issue branch, `agent-review` status, then the issue pull request into the milestone branch; resumes from the GitHub and git state | `git push`, `gh pr create`, `gh api` (permission prompts); the issue pull request into the milestone branch |
 
-No skill merges: a human merges.
+No skill merges: a human merges every pull request into a milestone branch, `dev`, `test` or `main`; sub-issue pull requests are merged by GitHub auto-merge (see *Repository settings*).
 
 `/issue-status <number>` is read-only: it shows the state `/implement-issue` works from (sub-issues, pull requests, review rounds, `agent-review`, questions waiting) and the next action.
 
@@ -77,7 +77,7 @@ Roles: the orchestrator (`/implement-issue`, in the main session) decides and is
 
 1. `/start-issue <n>` in the main checkout: readiness, issue branch, push (asks), and the command to start the run.
 2. In a new terminal at the repository root: `claude -w issue-<n> "/implement-issue <n>"` (its own worktree).
-3. Per sub-issue: branch `<type>/<issue>-<sub-issue>-<slug>`, `implementer`, draft pull request into the issue branch, review rounds (comment `### Review round k` with each finding's decision, models and tokens), `agent-review` status, merge (by the person until #131), then the sub-issue is closed.
+3. Per sub-issue: branch `<type>/<issue>-<sub-issue>-<slug>`, `implementer`, draft pull request into the issue branch, review rounds (comment `### Review round k` with each finding's decision, models and tokens), `agent-review` status, then `gh pr ready`: `sub-issue-automerge.yml` enables auto-merge (squash) and GitHub merges once `agent-review` is `success`; then the sub-issue is closed.
 
 Triage: the orchestrator fixes, rejects or sends each finding to the person. The severity is never a reason to reject: a rejection must say the finding is wrong, out of scope (naming the criterion) or already rejected, a finding raised by both `reviewer` and `/code-review` is never rejected as out of scope, and the issue pull request lists every rejected finding so that the person can overrule it.
 4. Issue pull request: `/simplify`, checks, `CHANGELOG.md` and `Bump-` lines, then review rounds with `/code-review high`, `/security-review` and `reviewer` against the parent issue. A human merges it.
@@ -92,6 +92,20 @@ Two more skills only describe how to work, so Claude may load them on its own, r
 |---|---|---|
 | `add-endpoint` | `api/**`, `backend/**` | Contract first, Spectral, backend implementation, public routes, slice test with `matchesContract()`, `./gradlew check`, frontend client, `Bump-` values; says which steps belong to an API, a backend and a frontend issue |
 | `e2e-journey` | `e2e/**` | Starts the stack with the commands of `e2e/README.md`, Page Object, `@SeleniumTest` test without `Thread.sleep`, accessibility check, runs the suite and reads the results, adds the *Journeys* row |
+
+### Repository settings
+
+Sub-issue auto-merge (`.github/workflows/sub-issue-automerge.yml`) needs these GitHub settings, applied once by a repository admin. Without the ruleset the workflow fails rather than enabling an auto-merge that would merge at once.
+
+1. *Settings → General → Pull Requests*: check **Allow auto-merge** (it only allows auto-merge to be enabled on a pull request). Keep **Allow squash merging** and **Automatically delete head branches** checked.
+2. *Settings → Actions → General → Workflow permissions*: leave the default (*Read repository contents*) and leave *Allow GitHub Actions to create and approve pull requests* unchecked; each job asks for its own scopes.
+3. *Settings → Rules → Rulesets → New branch ruleset* `issue-branches`:
+   - **Enforcement status**: *Active*.
+   - **Target branches → Include by pattern**: `feat/*`, `fix/*`, `chore/*`, `refactor/*`, `perf/*`, `security/*`, `ci/*`, `docs/*`, `test/*`.
+   - **Rules**: **Require status checks to pass** with `agent-review` (any source), **Block force pushes**. Not `pr-gate` (the pull request suite does not run on pull requests into an issue branch), not *Require a pull request before merging*.
+   - **Bypass list**: *Repository admin*, *Always allow*. The status rule also applies to direct pushes, so without it pushes to an issue branch (the `/simplify` commit, `CHANGELOG.md`, a merge of the milestone branch) would be refused. The auto-merge runs as `github-actions`, outside the list, so it waits for `agent-review`.
+
+A pull request into a milestone branch is not targeted by this ruleset, and the workflow never enables auto-merge on it: it stays merged by a human. `.github/workflows/close-merged-issues.yml` needs no setting: when the person merges an issue pull request into the milestone branch, it closes the issues its `Closes #<n>` lines name.
 
 ## Subagents
 

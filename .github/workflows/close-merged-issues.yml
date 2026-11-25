@@ -1,0 +1,52 @@
+name: "Close issues merged into a milestone"
+
+# GitHub applies "Closes #<n>" only on a merge into the default branch (dev): an issue merged
+# into its milestone branch would stay open, and keep the issues it blocks "blocked", until the
+# milestone reaches dev. This workflow closes the issues named by a closing keyword in the body of
+# a pull request merged into a milestone branch vX.Y.Z-a (#131).
+# Pull requests into dev, test and main are not matched: GitHub closes on dev itself.
+# Sub-issues are closed by /implement-issue: their auto-merge, done with the workflow token,
+# triggers no workflow.
+
+on:
+  pull_request:
+    branches:
+      - "v[0-9]+.[0-9]+.[0-9]+-a"
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  close:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+      - name: Close the issues named by a closing keyword
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # GitHub's keywords: close(s|d), fix(es|ed), resolve(s|d), optionally followed by ":".
+          numbers=$(printf '%s\n' "$BODY" \
+            | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]+#[0-9]+\b' \
+            | grep -oE '[0-9]+$' | sort -un || true)
+          if [ -z "$numbers" ]; then
+            echo "No closing keyword in #$PR: nothing to close." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for n in $numbers; do
+            state=$(gh api "repos/$REPO/issues/$n" --jq 'if .pull_request then "pull-request" else .state end' 2>/dev/null || echo "missing")
+            if [ "$state" = "open" ]; then
+              gh issue close "$n" --repo "$REPO" --comment "Merged into $BASE by #$PR."
+              echo "Closed #$n." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "#$n skipped ($state)." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
