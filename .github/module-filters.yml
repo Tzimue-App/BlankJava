@@ -10,7 +10,9 @@ frontend:
   - "api/**"
 e2e:
   - "e2e/**"
-# Release tooling: not a versioned component, tested by its own job
+# Release tooling: not a versioned component, tested by its own job.
+# .claude/settings.json is checked by tests/test_claude_settings.py (secret file deny rules, #118).
 tooling:
   - "bump_version.py"
   - "tests/**"
+  - ".claude/settings.json"
