@@ -103,7 +103,7 @@ Sub-issue auto-merge (`.github/workflows/sub-issue-automerge.yml`) needs these G
    - **Enforcement status**: *Active*.
    - **Target branches → Include by pattern**: `feat/*`, `fix/*`, `chore/*`, `refactor/*`, `perf/*`, `security/*`, `ci/*`, `docs/*`, `test/*`.
    - **Rules**: **Require status checks to pass** with `agent-review` (any source), **Block force pushes**. Not `pr-gate` (the pull request suite does not run on pull requests into an issue branch), not *Require a pull request before merging*.
-   - **Bypass list**: *Repository admin*, *Always allow*. The status rule also applies to direct pushes, so without it pushes to an issue branch (the `/simplify` commit, `CHANGELOG.md`, a merge of the milestone branch) would be refused. The auto-merge runs as `github-actions`, outside the list, so it waits for `agent-review`.
+   - **Bypass list**: *Repository admin*, *Always allow*. The patterns also match sub-issue branches (`feat/14-57-backend`), and the status rule also applies to direct pushes, so without it pushes to an issue or sub-issue branch (implementer and fix-round commits, the `/simplify` commit, `CHANGELOG.md`, a merge of the milestone branch) would be refused: only a repository admin can run `/implement-issue`. The auto-merge runs as `github-actions`, outside the list, so it waits for `agent-review`.
 
 A pull request into a milestone branch is not targeted by this ruleset, and the workflow never enables auto-merge on it: it stays merged by a human. `.github/workflows/close-merged-issues.yml` needs no setting: when the person merges an issue pull request into the milestone branch, it closes the issues its `Closes #<n>` lines name.
 

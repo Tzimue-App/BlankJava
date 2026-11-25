@@ -49,13 +49,18 @@ jobs:
         run: |
           types='(feat|fix|chore|refactor|perf|security|ci|docs|test)'
           slug='[a-z0-9][a-z0-9-]*'
-          # A sub-issue branch is not an issue branch (tested first: a test resets BASH_REMATCH).
-          if [[ "$BASE" =~ ^[a-z]+/[0-9]+-[0-9]+- ]] || [[ ! "$BASE" =~ ^${types}/([0-9]+)-${slug}$ ]]; then
+          if [[ ! "$BASE" =~ ^${types}/([0-9]+)-(${slug})$ ]]; then
             echo "Base $BASE is not an issue branch: nothing to do." >> "$GITHUB_STEP_SUMMARY"
             echo "match=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           issue="${BASH_REMATCH[2]}"
+          # A base "<type>/<issue>-<n>-<slug>" may be a sub-issue branch, or an issue branch whose
+          # slug starts with digits ("fix/14-404-page"): the next step asks GitHub.
+          base_sub=""
+          if [[ "${BASH_REMATCH[3]}" =~ ^([0-9]+)- ]]; then
+            base_sub="${BASH_REMATCH[1]}"
+          fi
           if [[ ! "$HEAD" =~ ^${types}/${issue}-([0-9]+)-${slug}$ ]]; then
             echo "Head $HEAD is not a sub-issue branch of #$issue: nothing to do." >> "$GITHUB_STEP_SUMMARY"
             echo "match=false" >> "$GITHUB_OUTPUT"
@@ -65,6 +70,7 @@ jobs:
             echo "match=true"
             echo "issue=$issue"
             echo "sub_issue=${BASH_REMATCH[2]}"
+            echo "base_sub=$base_sub"
           } >> "$GITHUB_OUTPUT"
 
       - name: Check that the head issue is a sub-issue of the base issue
@@ -75,8 +81,13 @@ jobs:
           REPO: ${{ github.repository }}
           ISSUE: ${{ steps.branches.outputs.issue }}
           SUB_ISSUE: ${{ steps.branches.outputs.sub_issue }}
+          BASE_SUB: ${{ steps.branches.outputs.base_sub }}
         run: |
-          if gh api --paginate "repos/$REPO/issues/$ISSUE/sub_issues" --jq '.[].number' | grep -qx "$SUB_ISSUE"; then
+          subs=$(gh api --paginate "repos/$REPO/issues/$ISSUE/sub_issues" --jq '.[].number')
+          if [ -n "$BASE_SUB" ] && grep -qx "$BASE_SUB" <<< "$subs"; then
+            echo "Base is the branch of sub-issue #$BASE_SUB, not an issue branch: nothing to do." >> "$GITHUB_STEP_SUMMARY"
+            echo "match=false" >> "$GITHUB_OUTPUT"
+          elif grep -qx "$SUB_ISSUE" <<< "$subs"; then
             echo "match=true" >> "$GITHUB_OUTPUT"
           else
             echo "#$SUB_ISSUE is not a sub-issue of #$ISSUE: nothing to do." >> "$GITHUB_STEP_SUMMARY"

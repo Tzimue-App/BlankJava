@@ -7,9 +7,11 @@ name: "Close issues merged into a milestone"
 # Pull requests into dev, test and main are not matched: GitHub closes on dev itself.
 # Sub-issues are closed by /implement-issue: their auto-merge, done with the workflow token,
 # triggers no workflow.
+# pull_request_target, not pull_request: a pull request from a fork would get a read-only token.
+# Safe here: no checkout, no code from the pull request runs, and its body only goes through env.
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - "v[0-9]+.[0-9]+.[0-9]+-a"
     types: [closed]
