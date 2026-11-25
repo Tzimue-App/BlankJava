@@ -31,7 +31,7 @@
       "Bash(gh pr checks*)",
       "Bash(gh run view*)",
       "Bash(gh run download*)",
-      "Bash(gh api repos/*/statuses/*)"
+      "Bash(gh api repos/{owner}/{repo}/statuses/*)"
     ],
     "ask": [
       "Bash(git push*)",
