@@ -100,7 +100,7 @@ Skipped: <step> (<reason>), ...
 
 When every sub-issue is done (or for an issue without sub-issues, after step 4.1 on the issue branch):
 
-On resume, once the issue pull request exists, the next round of step 7.5 is 1 + the number of `### Review round` comments on it, as in section 2; once the rounds are over (a round with no `important` finding left to fix, or 3 rounds), go to step 7.6. The rounds are over only when every finding triaged `fix` in the last round comment has a matching `### Fix round <k>` comment; otherwise do that fix pass first.
+On resume, once the issue pull request exists, the next round of step 7.5 is 1 + the number of `### Review round` comments on it, as in section 2; once the rounds are over (a round with no `important` finding left to fix, or 3 rounds), go to step 7.6. The rounds are over only when every finding triaged `fix` in the last round comment has a matching `### Fix round <k>` comment; otherwise do that fix pass first. Once the issue pull request exists, step 7.1 still runs but steps 7.2 to 7.4 are skipped, and these skips are not recorded on the `Skipped` line.
 
 1. `git switch <issue-branch>` and `git pull --ff-only`.
 2. Run the `simplify` skill on the changes of the issue (`git diff origin/<milestone-branch>...HEAD`). It changes code: run the checks of the changed modules, then commit (`refactor: simplify ... (#$ARGUMENTS)`). Skip if a previous run already did (a commit `refactor: simplify` exists since the last sub-issue merge). Any skip, for this or another reason, goes on the `Skipped` line of the first round comment of step 7.5.
