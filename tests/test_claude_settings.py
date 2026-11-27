@@ -14,6 +14,33 @@ import unittest
 SETTINGS = os.path.join(os.path.dirname(__file__), "..", ".claude", "settings.json")
 ANY_DEPTH = "//**/"
 
+# Path corpus, shared with tests/test_audit_write_guard.py (parity of the Bash guard, #123).
+DENIED_PATHS = [
+    "C:/x/infra/secrets/a.txt",
+    "/home/u/p/infra/secrets/sub/b",
+    "/infra/secrets/jwt-private.pem",
+    "C:/x/y/z/infra/secrets/deep/er/c",
+    "C:/x/.env",
+    "/home/u/p/backend/.env.E2E",
+    "C:/x/keys/jwt.pem",
+    "/home/u/p/a/b/server.key",
+]
+ALLOWED_PATHS = [
+    "C:/x/infra/README.md",
+    "/home/u/p/infra/secrets-old/a",
+    "/home/u/p/infra/secret/a",
+    "C:/x/.env.example",
+    "/home/u/p/backend/.env.example",
+]
+ENV_VARIANTS = [
+    ".env", ".env.", ".env.bak", ".env.local", ".env~", ".envrc",
+    ".env - Copy", ".env (1)", ".env@bak", ".env]x", ".env[x", ".envé",
+    ".env\tx", ".env\x01", ".env.\tx", ".env.ex\x1f", ".env.exampl\t",
+    ".env.e2e", ".env.E2E", ".env.eXtra", ".env.EX", ".env.e", ".env.ex",
+    ".env.exa", ".env.exam", ".env.examp", ".env.exampl", ".env.EXAMPL",
+    ".env.exampl@", ".env.example.bak", ".env.EXAMPLE.bak", ".env.example~",
+]
+
 
 def load_settings():
     with open(SETTINGS, encoding="utf-8") as f:
@@ -131,42 +158,17 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(self.secret_globs("Read"), self.secret_globs("Edit"))
 
     def test_secret_paths_denied_at_any_depth(self):
-        denied = [
-            "C:/x/infra/secrets/a.txt",
-            "/home/u/p/infra/secrets/sub/b",
-            "/infra/secrets/jwt-private.pem",
-            "C:/x/y/z/infra/secrets/deep/er/c",
-            "C:/x/.env",
-            "/home/u/p/backend/.env.E2E",
-            "C:/x/keys/jwt.pem",
-            "/home/u/p/a/b/server.key",
-        ]
-        allowed = [
-            "C:/x/infra/README.md",
-            "/home/u/p/infra/secrets-old/a",
-            "/home/u/p/infra/secret/a",
-            "C:/x/.env.example",
-            "/home/u/p/backend/.env.example",
-        ]
         for ignore_case in (True, False):
             for tool in ("Read", "Edit"):
-                for path in denied:
+                for path in DENIED_PATHS:
                     self.assertTrue(self.path_denied(tool, path, ignore_case), f"{tool} {path}")
-                for path in allowed:
+                for path in ALLOWED_PATHS:
                     self.assertFalse(self.path_denied(tool, path, ignore_case), f"{tool} {path}")
 
     def test_env_variants_denied(self):
-        names = [
-            ".env", ".env.", ".env.bak", ".env.local", ".env~", ".envrc",
-            ".env - Copy", ".env (1)", ".env@bak", ".env]x", ".env[x", ".envé",
-            ".env\tx", ".env\x01", ".env.\tx", ".env.ex\x1f", ".env.exampl\t",
-            ".env.e2e", ".env.E2E", ".env.eXtra", ".env.EX", ".env.e", ".env.ex",
-            ".env.exa", ".env.exam", ".env.examp", ".env.exampl", ".env.EXAMPL",
-            ".env.exampl@", ".env.example.bak", ".env.EXAMPLE.bak", ".env.example~",
-        ]
         for ignore_case in (True, False):
             for tool in ("Read", "Edit"):
-                for name in names:
+                for name in ENV_VARIANTS:
                     self.assert_name_denied(tool, name, ignore_case)
 
     def test_upper_case_env_denied_when_case_is_folded(self):
