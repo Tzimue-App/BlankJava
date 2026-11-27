@@ -189,6 +189,13 @@ case "$tool" in
     # The tokenizer is quadratic in the command length: cap it well inside the hook timeout.
     [ "${#cmd}" -le 4096 ] || block "commands over 4096 characters are refused."
     tokenize "$cmd"
+    # The path check reads a short-option word from after each of its characters (`-f.env`), which
+    # is quadratic in its length: cap the total, or a timed-out hook would let the call through.
+    short=0
+    for a in "${words[@]}"; do
+      [[ "$a" == -* && "$a" != --* ]] && short=$((short + ${#a}))
+    done
+    [ "$short" -le 64 ] || block "short options over 64 characters in all are refused."
     exempt=() diff_words=()
     # Every pipe segment must be an allowed read-only command.
     for ((s = 0; s + 1 < ${#seg_start[@]}; s++)); do

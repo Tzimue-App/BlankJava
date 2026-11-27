@@ -354,6 +354,17 @@ class AuditGuardTest(unittest.TestCase):
             allowed=("wc -l .claude/settings.json", "wc --lines .claude/settings.json"),
         )
 
+    def test_r3_2_long_short_options_are_blocked_before_the_timeout(self):
+        # The first case took 18 s, past the 10 s hook timeout, and a timed-out hook lets the call through.
+        self.assert_all(
+            blocked=(
+                "head -" + "q" * 1500 + " .env",
+                "ls -" + "a" * 65,
+                " ".join(["ls"] + ["-" + "a" * 20] * 4),
+            ),
+            allowed=("head -n 50 README.md", "ls -" + "a" * 63, "ls -la -h -t"),
+        )
+
     def test_r3_6_git_status_ignore_submodules_is_allowed(self):
         self.assert_all(
             blocked=("git status --ignored", "git status --ig", "git status --i", "git ls-files --ignored"),
