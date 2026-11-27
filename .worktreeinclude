@@ -1,0 +1,14 @@
+# Git-ignored files that a new worktree needs to run the stack (issue #94).
+# .gitignore syntax; each pattern starts with / so it matches at the repository root only.
+# Claude Code copies a file only if it matches a pattern here AND is git-ignored, into the
+# worktrees it creates: `claude -w <name>`, subagent worktrees, desktop app parallel sessions.
+# https://code.claude.com/docs/en/worktrees
+
+# Compose variables (.env.example is tracked)
+/.env
+
+# JWT signing key(s), infra/README.md section 1
+/infra/secrets/
+
+# Technical analysis, roadmap and GitHub setup, referenced by README.md and the workflows
+/docs/

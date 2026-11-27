@@ -1,0 +1,60 @@
+# BlankJava
+
+Commands and rules that cannot be read from the code. Each module's `README.md` has the details.
+
+## Commands
+
+Run from the module directory unless stated. On Windows, use `gradlew.bat`, or `./gradlew` from Git Bash.
+
+Backend (`backend/`):
+- `./gradlew test`: unit and slice tests
+- `./gradlew test --tests com.blankjava.web.FieldErrorsTest`: one test class
+- `./gradlew integrationTest`: integration tests (Testcontainers, needs Docker)
+- `./gradlew check`: unit and integration tests, coverage thresholds, Spotless check (Error Prone runs on every compile)
+- `./gradlew spotlessApply`: format the Java code
+
+Frontend (`frontend/`):
+- `npm ci`: install
+- `npm run lint`, `npm run format` (Prettier writes LF: on a Windows CRLF checkout files with no real change show as modified; `git checkout -- <file>` reverts them)
+- `npm run test:ci`: unit tests once, with coverage thresholds
+- `npm test -- --watch=false --include=projects/web/src/app/core/auth/auth-session.spec.ts`: one spec file (path from `frontend/`)
+- `npm run build`
+
+API, from the repository root:
+- `npx --yes @stoplight/spectral-cli@6.17.0 lint api/openapi.yaml --ruleset api/.spectral.yaml --fail-severity=warn`
+
+Selenium suite, from the repository root (needs Docker, `.env` and `infra/secrets/jwt-private.pem`, created as in `infra/README.md` §1):
+- `docker compose --profile e2e up --build --wait`: start the stack
+- `docker compose --profile e2e run --build --rm e2e`: run the suite
+- `docker compose --profile e2e down`: stop the stack
+
+Tooling, from the repository root:
+- `python -m pytest tests/`
+- `python bump_version.py --check origin/<milestone-branch> --head-ref <branch>`: branch flow, `CHANGELOG.md` and `Bump-*` lines, as checked by CI
+
+## Gotchas
+
+- Generated code is never edited: `backend/build/generated/`, `frontend/projects/web/src/app/core/api/generated/`, `*.generated.ts`. Change `api/openapi.yaml` and regenerate (the backend build and the frontend `npm` scripts regenerate it; a direct `ng` or `npx ng` call does not, so go through `npm`).
+- Version fields are written by `bump_version.py` only: `version` in `backend/gradle.properties` and `e2e/gradle.properties`, `version` in `frontend/package.json` and the root `package.json`, `info.version` in `api/openapi.yaml`.
+- The contract changes first (`api/openapi.yaml`), then the backend and the frontend.
+- Flyway migrations (`backend/src/main/resources/db/migration/`) are forward-only: add a new `V<n>__<name>.sql`, never edit an existing one.
+- Integration tests and the Selenium suite need Docker running.
+
+## LSP tool
+
+The `LSP` tool (jdtls for Java, tsserver for TypeScript) can return incomplete results without any warning. Use it to go faster, never as proof:
+
+- An empty or short result proves nothing. Before concluding that a symbol is unused or untested, and before renaming, moving or deleting one, confirm with `Grep`.
+- Results under git-ignored paths are dropped by Claude Code, so `goToDefinition`, `findReferences` and `workspaceSymbol` never reach `backend/build/generated/` (anthropics/claude-code#101476). For a generated type, `hover` gives its file: `Read` it.
+- In the frontend, specs are found only once a spec file is open (`tsconfig.json` only references `tsconfig.app.json` and `tsconfig.spec.json`). Call `documentSymbol` on the neighbouring `.spec.ts` before `findReferences`.
+- The servers only see the changes made with `Edit` and `Write`. After a shell command that changes files (`git checkout`, `git rebase`, `git pull`, `./gradlew spotlessApply`, `npm run format`, code generation), they keep the old content and their line numbers are wrong (anthropics/claude-code#76870). Check positions with `Read` or `Grep` before relying on them; only a new session reloads the servers.
+
+## Workflow
+
+- One issue = one branch `<type>/<issue>-<slug>` (e.g. `feat/14-register-page`), created from the milestone branch `vX.Y.Z-a`.
+- One pull request into the milestone branch, with `Closes #<issue>`.
+- Each PR adds its notes to `CHANGELOG.md` `[Unreleased]` and sets `Bump-<component>:` for every component it changes.
+- Large issues are split into sub-issues: branch `<type>/<issue>-<sub-issue>-<slug>` from the issue branch, PR into the issue branch, no `CHANGELOG.md` change; `/implement-issue <n>` runs them.
+- A human merges every pull request into a milestone branch, `dev`, `test` or `main`; sub-issue pull requests into an issue branch merge automatically once `agent-review` passes (`sub-issue-automerge.yml`). Never merge a pull request or enable auto-merge yourself.
+- An issue is closed when its pull request is merged into the milestone branch (`close-merged-issues.yml`), a sub-issue when its pull request is merged into the issue branch (`/implement-issue`).
+- Everything else: `.github/ISSUE_GUIDELINES.md`.

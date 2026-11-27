@@ -17,6 +17,13 @@ Security vulnerabilities are **never** filed as issues: use *Security → Report
 - **One issue = one issue branch = one pull request.** An issue is sized so that its PR can be reviewed in one sitting (roughly under 400 changed lines, excluding generated code). A capability too large for that is split into several issues (e.g. API contract, backend, frontend page), linked by `Depends on #<issue>`.
 - Dependencies between issues are listed in the issue (*Related*) and in `docs/roadmap.md`.
 
+## Sub-issues
+
+- An issue may be split into GitHub **sub-issues**, each one sized to be implemented and reviewed in one go, with its own acceptance criteria and the parent issue's template. Order them with GitHub's *blocked by* links (`gh issue edit <n> --add-blocked-by <m>`); `/implement-issue` reads those links and does the sub-issues one after the other, in that order.
+- A sub-issue has its own branch `<type>/<issue>-<sub-issue>-<slug>` (GitHub numbers, e.g. `feat/14-57-backend`), created from the issue branch, and one pull request into the issue branch with `Closes #<sub-issue>`. It is squash-merged into the issue branch by GitHub auto-merge once its `agent-review` status is `success` (`.github/workflows/sub-issue-automerge.yml`); only the issue pull request goes into the milestone branch. The sub-issue is closed when its pull request is merged into the issue branch (`Closes #` only acts on the default branch, and a merge done by the workflow token triggers no workflow, so `/implement-issue` closes it); this unblocks the sub-issues it blocks.
+- A sub-issue pull request carries no `CHANGELOG.md` or `Bump-` change: the issue pull request writes them once.
+- Questions an agent cannot settle: a critical one puts the `need-manual` label on the pull request and stops that issue; a minor one goes to the milestone issue labelled `question`, worked through at the end of the milestone.
+
 ## Titles
 
 [Conventional Commits](https://www.conventionalcommits.org/) style, describing the outcome rather than the task. The PR title reuses it, and becomes the squash commit message.
@@ -51,8 +58,10 @@ Progress is tracked **only** in the *Status* field of the GitHub Project board:
 |---|---|
 | **Todo** | Filed, not started. Picked up in roadmap order once it is ready (see *Content*) |
 | **In Progress** | The issue branch exists and work is ongoing |
-| **In Review** | Its PR is open, **or** merged into the milestone branch. The issue stays open until the milestone reaches `dev`: GitHub only applies `Closes #<issue>` on the default branch |
-| **Done** | Closed: the milestone has been merged into `dev` |
+| **In Review** | Its PR is open |
+| **Done** | Closed: its PR is merged into the milestone branch (`.github/workflows/close-merged-issues.yml` applies `Closes #<issue>`, which GitHub itself only applies on the default branch); a sub-issue, once its PR is merged into the issue branch |
+
+A milestone that is abandoned (never merged into `dev`) reopens the issues it closed: `gh issue reopen <n>` for each issue whose PR was merged into that milestone branch.
 
 ## Branches
 
@@ -60,6 +69,7 @@ Progress is tracked **only** in the *Status* field of the GitHub Project board:
 |---|---|---|---|
 | `vX.Y.Z-a` | `dev`, with `python bump_version.py --start-milestone X.Y.Z` or the *Start milestone* workflow | Milestone integration | `dev` |
 | `<type>/<issue>-<slug>`, e.g. `feat/14-register-page` | the milestone branch | One issue | the milestone branch |
+| `<type>/<issue>-<sub-issue>-<slug>`, e.g. `feat/14-57-backend` | the issue branch | One sub-issue | the issue branch |
 | `dev` | — | Alpha releases `vX.Y.Z-alpha` | `test` |
 | `test` | — | Beta releases `vX.Y.Z-beta`, Docker images | `main` |
 | `main` | — | Stable releases `vX.Y.Z` | — |
@@ -67,8 +77,8 @@ Progress is tracked **only** in the *Status* field of the GitHub Project board:
 - Issue branches cannot be named `vX.Y.Z-a/…` (Git cannot hold a branch and sub-branches of the same name).
 - The milestone branch `vX.Y.Z-a` (project version `X.Y.Z-alpha`) is deleted when merged into `dev`, where the release creates the tag `vX.Y.Z-alpha`. Delete your local copy too (`git branch -d vX.Y.Z-a`).
 - A version is released once per stage: a defect found in `vX.Y.Z-beta` is fixed in the next patch milestone.
-- Issue PRs are **squash-merged**; milestone and promotion PRs use **merge commits**.
-- **Every PR is reviewed and merged by a human.** PRs into `dev`, `test` and `main` must have a green Selenium suite; the reviewer opens its report (linked in the PR comment) before approving.
+- Issue and sub-issue PRs are **squash-merged**; milestone and promotion PRs use **merge commits**.
+- **Every PR into a milestone branch, `dev`, `test` or `main` is reviewed and merged by a human.** A sub-issue PR into its issue branch is reviewed by agents (`/implement-issue`) and squash-merged by GitHub auto-merge once its `agent-review` status is `success`; with `failure` or no status it stays open for the person. PRs into `dev`, `test` and `main` must have a green Selenium suite; the reviewer opens its report (linked in the PR comment) before approving.
 
 ## Changelog and versions
 
@@ -89,4 +99,4 @@ Over a milestone, each line keeps the most significant bump: a PR may raise a va
 - Tests cover the change (coverage thresholds and 80 % diff coverage met); for a bug, a regression test fails without the fix.
 - Every new user-visible flow has a Selenium scenario.
 - `CHANGELOG.md` updated with the right `Bump-<component>:` lines; docs updated.
-- PR into the milestone branch reviewed and merged by a human, with `Closes #<issue>` in its description. The issue closes automatically when the milestone is merged into `dev` (the default branch).
+- PR into the milestone branch reviewed and merged by a human, with `Closes #<issue>` in its description. The issue closes automatically when that PR is merged into the milestone branch.
