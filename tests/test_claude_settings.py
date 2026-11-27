@@ -1,5 +1,6 @@
 """
-Checks of .claude/settings.json (issue #118): valid JSON, the secret file deny rules kept.
+Checks of .claude/settings.json: valid JSON, the secret file deny rules kept (issue #118),
+every spelling of a pull request merge denied (issue #119).
 
 Run from the repository root:
     python -m pytest tests/
@@ -86,6 +87,18 @@ def path_regex(glob, ignore_case=True):
     return re.compile(out + r"\Z", re.IGNORECASE if ignore_case else 0)
 
 
+def command_regex(glob, ignore_case=True):
+    """Regex of a Bash or PowerShell rule body: ``*`` matches any text, spaces included (checked live for Bash).
+
+    Single-line commands only: whether Claude Code's ``*`` crosses a newline was not checked
+    (.claude/README.md, *Merge rules*), so ``.`` here does not match one.
+    """
+    return re.compile(
+        ".*".join(re.escape(p) for p in glob.split("*")) + r"\Z",
+        re.IGNORECASE if ignore_case else 0,
+    )
+
+
 class SettingsTest(unittest.TestCase):
     def setUp(self):
         self.permissions = load_settings()["permissions"]
@@ -99,9 +112,18 @@ class SettingsTest(unittest.TestCase):
             if rule.startswith(prefix) and "/" not in rule[len(prefix) : -1]
         ]
 
+    def rule_bodies(self, tool, prefix=""):
+        start = tool + "(" + prefix
+        return [rule[len(start) : -1] for rule in self.deny if rule.startswith(start)]
+
     def secret_globs(self, tool):
-        prefix = tool + "(//"
-        return [rule[len(prefix) : -1] for rule in self.deny if rule.startswith(prefix)]
+        return self.rule_bodies(tool, "//")
+
+    def merge_globs(self, tool):
+        return [body for body in self.rule_bodies(tool) if body.startswith("*gh*")]
+
+    def merge_rules(self, tool, ignore_case):
+        return [command_regex(glob, ignore_case) for glob in self.merge_globs(tool)]
 
     def path_denied(self, tool, path, ignore_case=True):
         return any(path_regex(glob, ignore_case).match(path) for glob in self.secret_globs(tool))
@@ -189,20 +211,101 @@ class SettingsTest(unittest.TestCase):
         self.assertIn("Bash(git *diff*--no-index*)", self.deny)
 
     def test_git_diff_no_index_denied_after_git_options(self):
-        # A Bash rule's * matches any text, spaces included
-        rules = [
-            re.compile(".*".join(re.escape(p) for p in rule[len("Bash(") : -1].split("*")) + r"\Z")
-            for rule in self.deny
-            if rule.startswith("Bash(git ")
-        ]
+        globs = [body for body in self.rule_bodies("Bash") if body.startswith("git ")]
+        self.assertIn("git *diff*--no-index*", globs)
+        rules = [command_regex(glob, ignore_case=False) for glob in globs]
         for command in (
             "git diff --no-index backend/a backend/b",
             "git --no-pager diff --no-index backend/a backend/b",
             "git -C . diff --no-index backend/a backend/b",
         ):
             self.assertTrue(any(r.match(command) for r in rules), command)
-        for command in ("git diff --stat", "git log -1", "git diff origin/v0.2.1-a...HEAD"):
+        for command in (
+            "git diff --stat",
+            "git log -1",
+            "git diff origin/v0.2.1-a...HEAD",
+        ):
             self.assertFalse(any(r.match(command) for r in rules), command)
+
+    def test_every_spelling_of_a_pull_request_merge_denied(self):
+        commands = [
+            "gh pr merge",
+            "gh pr merge 12",
+            "gh pr merge 12 --squash --delete-branch",
+            "gh pr merge>out.txt 12",
+            "gh pr merge\"\" 12",
+            "gh pr merge\t12",
+            "gh pr merge --auto --squash 12",
+            "gh pr merge 12 -R owner/repo",
+            "gh -R owner/repo pr merge 12",
+            "gh pr -R owner/repo merge 12",
+            "gh pr --repo owner/repo merge 12",
+            "gh pr --repo=owner/repo merge --auto 12",
+            "GH_REPO=owner/repo gh pr merge 12",
+            "gh.exe pr merge 12",
+            "& gh pr merge 12",
+            "gh api repos/owner/repo/pulls/12/merge -X PUT",
+            "gh api -X PUT repos/owner/repo/pulls/12/merge",
+            "gh api --method PUT /repos/{owner}/{repo}/pulls/12/merge -f merge_method=squash",
+            "gh api repos/owner/repo/merges -f base=main -f head=feat/x",
+            "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+            "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+            "gh api graphql -f query='mutation { mergeBranch(input: {repositoryId: \"x\", base: \"main\", head: \"f\"}) { clientMutationId } }'",
+            "gh api graphql -f query='mutation { enqueuePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+        ]
+        # Case-sensitive is the strict direction for a deny: a case-folded matcher denies at least as much
+        for tool in ("Bash", "PowerShell"):
+            rules = self.merge_rules(tool, ignore_case=False)
+            for command in commands:
+                with self.subTest(tool=tool, command=command):
+                    self.assertTrue(any(r.match(command) for r in rules))
+
+    def test_upper_case_gh_denied_when_case_is_folded(self):
+        # Windows runs GH.exe for `GH`; denied only if the matcher folds case (not checked for Bash)
+        for tool in ("Bash", "PowerShell"):
+            rules = self.merge_rules(tool, ignore_case=True)
+            for command in ("GH pr merge 12", "GH pr -R owner/repo merge 12"):
+                with self.subTest(tool=tool, command=command):
+                    self.assertTrue(any(r.match(command) for r in rules))
+
+    def test_other_commands_mentioning_merge_stay_allowed(self):
+        commands = [
+            "git merge origin/v0.2.1-a",
+            "git log --merges",
+            "git log --merges -1 --oneline",
+            "gh pr view 12",
+            "gh pr view 12 --json state",
+            "gh pr view 12 --json state,mergedAt,mergeable,mergeStateStatus",
+            "gh pr -R o/r view 1 --json mergedAt",
+            "gh pr --repo o/r view 1 --json mergedAt",
+            "gh pr checks 12",
+            "gh pr ready 12",
+            "gh pr list --base feat/14-x --state merged --search \"57 in:body\" --json number,body",
+            "gh pr list --state merged --search \"57 in:body\" --limit 100 --json number,title,body,baseRefName",
+            "gh issue close 57 --comment \"Merged into feat/14-x by #60 (/implement-issue).\"",
+            "gh pr comment 60 --body-file round.md",
+            "gh pr comment 60 --body \"F1 blocks the merge: no\"",
+            "gh run list --workflow sub-issue-automerge.yml",
+            "gh run view 123 --log",
+            "gh api repos/{owner}/{repo}/statuses/abc -f state=success -f context=agent-review",
+            "gh api repos/owner/repo/pulls/12 --jq .merged",
+            "gh api \"repos/owner/repo/pulls?state=closed\" --jq '.[].merged_at'",
+            "gh api graphql -f query='{repository(owner:\"o\",name:\"r\"){pullRequest(number:12){mergeStateStatus mergeable}}}'",
+            "gh pr create --base v0.2.1-a --head chore/119-deny-pr-merge-variants --title \"x\"",
+            "python bump_version.py --check origin/v0.2.1-a --head-ref chore/119-deny-pr-merge-variants",
+            "git push -u origin chore/119-deny-pr-merge-variants",
+        ]
+        # Every Bash / PowerShell deny rule, secret file rules included, not only the merge rules
+        for tool in ("Bash", "PowerShell"):
+            rules = [command_regex(glob, ignore_case=True) for glob in self.rule_bodies(tool)]
+            self.assertTrue(self.merge_globs(tool), tool)
+            for command in commands:
+                with self.subTest(tool=tool, command=command):
+                    self.assertFalse(any(r.match(command) for r in rules))
+
+    def test_bash_and_powershell_deny_the_same_merge_rules(self):
+        self.assertTrue(self.merge_globs("Bash"))
+        self.assertEqual(self.merge_globs("Bash"), self.merge_globs("PowerShell"))
 
 
 if __name__ == "__main__":
